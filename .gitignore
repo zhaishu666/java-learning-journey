@@ -1,0 +1,54 @@
+# 编译class文件
+/target/
+/bin/
+*.class
+
+# IDEA 配置
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse 配置
+.classpath
+.project
+.c9/
+.settings/
+*.prefs
+
+# VSCode
+.vscode/
+*.log
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+gradle-app.setting
+HEAP Dump
+*.hprof
+
+# 日志文件
+*.log
+*.gz
+
+# 系统缓存
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak
