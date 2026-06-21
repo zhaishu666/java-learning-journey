@@ -4,6 +4,7 @@ import java.util.Scanner;
 
 /*飞机票的价格会随着是否为淡季和是否为头等舱变化,输入原票价,月份,头等舱或经济舱
 5-10月旺季头等舱9折,经济舱8.5折,11月到来年4月为淡季,头等舱7折经济舱6.5折
+CTRL + ALT + M 自动抽取方法  CTRL + P 显示方法内顺序
  */
 public class AirTicket {
 
