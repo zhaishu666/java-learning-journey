@@ -3,6 +3,7 @@ package week1.day04;
 import java.util.Scanner;
 
 //输入一个整数x,如果这个整数是回文数,则返回true,反之返回false
+//回文数:数字的各位调换后与原数依然相等的数 如:12321
 public class MathPractice {
    public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
