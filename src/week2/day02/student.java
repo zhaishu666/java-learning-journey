@@ -7,9 +7,9 @@ public class student {
     private int age;
 
     //对于每个私有化的成员变量,都要提供set和get方法
-    public void setAge(int a) { //set赋值
-        if(a >= 18 && a <= 25){
-            age = a;
+    public void setAge(int age) { //set赋值
+        if(age >= 18 && age <= 25){
+            this.age = age;
         }else{
             System.out.println("错误年龄");
         }
@@ -18,8 +18,8 @@ public class student {
         return age;
     }
 
-    public void setName(String n) {
-        name = n;
+    public void setName(String name) {
+        this.name = name;
     }
     public String getName() {
         return name;
