@@ -2,7 +2,7 @@ package week2.day06;
 
 import java.io.FilterOutputStream;
 
-//旋转字符串,将最左边的字符移动到最右边,若干次后两个数组相同,输出true,否则输出false
+//旋转字符串,将最左边的字符移动到最右边,若干次后两个字符串相同,输出true,否则输出false
 public class RotateString {
     static void main() {
         String s1 = "abcde";

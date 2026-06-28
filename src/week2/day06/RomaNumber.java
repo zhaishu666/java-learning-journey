@@ -44,6 +44,7 @@ public class RomaNumber {
         for (int i = 0; i < strNum.length(); i++) {
             if (strNum.charAt(i) <= '0' || strNum.charAt(i) >= '9') {
                 flag = false;
+                break;
             }
         }
         return flag;

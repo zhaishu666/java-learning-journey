@@ -36,6 +36,7 @@ public class Encryption {
             result = result + arr[i];
         }
         System.out.println(result);
+        sc.close();
     }
 
     public static void extracted2(int[] arr) { //把所有数字反转

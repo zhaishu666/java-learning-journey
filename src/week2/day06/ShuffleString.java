@@ -11,6 +11,7 @@ public class ShuffleString {
         String str = sc.next();
         String result = shuffle(str);
         System.out.println(result);
+        sc.close();
     }
 
     public static String shuffle(String str){
@@ -22,7 +23,6 @@ public class ShuffleString {
             arr[i] = arr[ran];
             arr[ran] = temp;
         }
-        String newStr = new String(arr);
-        return newStr;
+        return new String(arr);
     }
 }
