@@ -7,7 +7,7 @@ public class StudentSystem {
     static void main() {
         Scanner sc = new Scanner(System.in);
         ArrayList<Student> list = new ArrayList<>();
-        while (true) {
+        while (true) {   //case时可以在while前加上loop: case内部break后也加上loop表示停止while
             int number = getNumber(sc);
             if (number == 1) {
                 setStudentMessage(list, sc);
@@ -26,13 +26,13 @@ public class StudentSystem {
     }
 
     public static void printStudent(ArrayList<Student> list) {
-        if (list.isEmpty()) {   //
+        if (list.isEmpty()) {   //调用方法对list的长度进行判断
             System.out.println("当前无学生信息,请添加后再查询");
         } else {
-            System.out.println("id       姓名      年龄      家庭住址");
+            System.out.println("id\t姓名\t年龄\t家庭住址");
             for (int i = 0; i < list.size(); i++) {
                 Student stu = list.get(i);
-                System.out.println(stu.getId() + "     " + stu.getName() + "     " + stu.getAge() + "     " + stu.getAddress());
+                System.out.println(stu.getId() + "\t" + stu.getName() + "\t" + stu.getAge() + "\t" + stu.getAddress());
             }
         }
     }
@@ -114,6 +114,7 @@ public class StudentSystem {
                 stu.setAddress(address);
                 list.add(stu);
                 count++;
+                System.out.println("学生信息添加成功");
                 System.out.println("如要继续请输入1,结束请输入任意建");
                 String con = "1";
                 String signal = sc.next();
