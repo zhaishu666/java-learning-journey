@@ -4,20 +4,25 @@ import java.util.ArrayList;
 import java.util.Scanner;
 
 public class StudentSystem {
+    private static final int SET_STUDENT_MESSAGE = 1;
+    private static final int  DELETE_STUDENT = 2;
+    private static final int  CHANGE_STUDENT = 3;
+    private static final int  PRINT_STUDENT = 4;
+    private static final int EXIT = 5;
     static void main() {
         Scanner sc = new Scanner(System.in);
         ArrayList<Student> list = new ArrayList<>();
         while (true) {   //case时可以在while前加上loop: case内部break后也加上loop表示停止while
             int number = getNumber(sc);
-            if (number == 1) {
+            if ( number == SET_STUDENT_MESSAGE) {
                 setStudentMessage(list, sc);
-            } else if (number == 2) {
+            } else if (number == DELETE_STUDENT) {
                 deleteStudent(list, sc);
-            } else if (number == 3) {
+            } else if (number == CHANGE_STUDENT) {
                 changeStudent(list, sc);
-            } else if (number == 4) {
+            } else if (number == PRINT_STUDENT) {
                 printStudent(list);
-            } else if (number == 5) {
+            } else if (number == EXIT) {
                 System.out.println("结束程序");
                 break;
             }

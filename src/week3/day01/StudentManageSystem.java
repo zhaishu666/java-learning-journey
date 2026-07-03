@@ -5,6 +5,10 @@ import java.util.Random;
 import java.util.Scanner;
 
 public class StudentManageSystem {
+    private static final String  LOGIN = "1";
+    private static final String  REGISTER = "2";
+    private static final String  FORGOT_PASSWORD = "3";
+    private static final String  EXIT = "4";
     static void main() {
         Scanner sc = new Scanner(System.in);
         ArrayList<User> list = new ArrayList<>();
@@ -14,10 +18,10 @@ public class StudentManageSystem {
             Random r = new Random();
             String num = sc.next();
             switch (num) {
-                case "1" -> login(list, sc, r);
-                case "2" -> register(list, sc);
-                case "3" -> forgotPassword(list,sc);
-                case "4" -> {
+                case LOGIN -> login(list, sc, r);
+                case REGISTER -> register(list, sc);
+                case FORGOT_PASSWORD -> forgotPassword(list,sc);
+                case EXIT -> {
                     break mainLoop;
                 }
                 default -> System.out.println("没有这个选项");

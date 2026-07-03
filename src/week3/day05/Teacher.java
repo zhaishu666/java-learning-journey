@@ -1,0 +1,14 @@
+package week3.day05;
+
+public class Teacher extends Employee {
+    public Teacher() {
+    }
+
+    public Teacher(String id, String name) {
+        super(id, name);
+    }
+    @Override
+    public void work(){
+        System.out.println("教研工作");
+    }
+}
