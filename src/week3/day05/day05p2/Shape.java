@@ -1,4 +1,4 @@
-package week3.day05p2;
+package week3.day05.day05p2;
 
 public class Shape {
     public Shape() {

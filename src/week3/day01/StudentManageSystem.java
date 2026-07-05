@@ -9,9 +9,14 @@ public class StudentManageSystem {
     private static final String  REGISTER = "2";
     private static final String  FORGOT_PASSWORD = "3";
     private static final String  EXIT = "4";
+
+    static ArrayList<User> list = new ArrayList<>();
+    static {
+        list.add(new User("zhangsan","1234qwer","341412345678901112","13112345678"));
+    }
     static void main() {
         Scanner sc = new Scanner(System.in);
-        ArrayList<User> list = new ArrayList<>();
+
        mainLoop: while (true) {
             System.out.println("欢迎来到学生管理系统");
             System.out.println("请选择操作: 1.登录 2.注册 3.忘记密码 4.退出");

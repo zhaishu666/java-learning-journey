@@ -1,4 +1,4 @@
-package week3.day05p1;
+package week3.day05.day05p1;
 
 public class Test {
     static void main() {
