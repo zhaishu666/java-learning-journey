@@ -23,7 +23,7 @@ public class BigIntegerDemo2 {
         System.out.println(bd1.divide(bd2));  //只获取商的除法
         System.out.println("----------------------------------------");
 
-        BigInteger[] arr = bd1.divideAndRemainder(bd2);
+        BigInteger[] arr = bd1.divideAndRemainder(bd2);  //获取商以及余数
         System.out.println(arr[0] + " " + arr[1]);
         System.out.println("----------------------------------------");
 
