@@ -4,6 +4,8 @@ import java.util.Random;
 
 public class A03_QuickSortDemo {
     public static void main(String[] args) {
+        //使用快速排序法进行排序
+
         //int[] arr = {6, 1, 2, 7, 9, 3, 4, 5, 10, 8};
 
         int[] arr = new int[100000];
@@ -36,7 +38,7 @@ public class A03_QuickSortDemo {
         //如果将0索引的数当作基准数的时候,一定要先移动end再移动start
         //因为先移动start会让两个指针指向一个大于基准数的数字,这样在基准数归位时会将大数交换到前面
 
-        while (start != end) {
+        while (start != end) {  //原理: 每次循环都让比基准数小的放左边,大的放右边
             while (true) {
                 if (end <= start || arr[end] < base) {
                     break;

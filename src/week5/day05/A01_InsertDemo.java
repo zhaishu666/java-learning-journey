@@ -16,7 +16,7 @@ public class A01_InsertDemo {
         }
 
         for (int i = stratIndex; i < arr.length; i++) {   //遍历数组中后面的无序部分
-            for (int j = i; j > 0; j--) {     //每次获得的无序部分的索引时,将这个索引的值逐个与前面比较
+            for (int j = i; j > 0; j--) {     //每次获得的无序部分的索引时,将这个索引的值逐个与前面比较,次数逐渐减少
                 if(arr[j] < arr[j-1]){
                     int temp = arr[j];
                     arr[j] = arr[j-1];

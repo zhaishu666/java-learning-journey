@@ -12,15 +12,13 @@ public class A07_GirlFriendTest {
 
         GirlFriend[] arr = {gf1,gf2,gf3,gf4};
 
-        Arrays.sort(arr, new Comparator<GirlFriend>() {
-            @Override
-            public int compare(GirlFriend o1, GirlFriend o2) {
+        Arrays.sort(arr,( o1,  o2) ->{
                 double temp = o1.getAge() - o2.getAge();
                 temp = temp == 0 ? o1.getHeight() - o2.getHeight() : temp;
                 temp = temp == 0 ? o1.getName().compareTo(o2.getName()) : temp;
                 //String中的compareTo方法,会比较两个字符串在ASCII码中的值
 
-                if(temp > 0){
+                if(temp > 0){  //防止-的结果为小数,而方法的返回值为int而导致排序问题
                     return 1;
                 } else if (temp < 0) {
                     return -1;
@@ -28,7 +26,7 @@ public class A07_GirlFriendTest {
                     return 0;
                 }
             }
-        });
+        );
 
         for (int i = 0; i < arr.length; i++) {
             System.out.println(arr[i].toString());
