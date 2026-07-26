@@ -1,4 +1,4 @@
-package week6.day07;
+package week6.day06;
 
 import java.util.Iterator;
 import java.util.Set;

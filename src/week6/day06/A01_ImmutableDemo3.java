@@ -1,6 +1,5 @@
-package week6.day07;
+package week6.day06;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
