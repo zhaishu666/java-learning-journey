@@ -8,7 +8,7 @@ public class A03_TreeSetDemo3 {
 
 
         //获得两个字符串的长度差
-        TreeSet<String> ts = new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(o -> o)
+        TreeSet<String> ts = new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(String :: compareTo)
         );
 
         ts.add("c");

@@ -64,6 +64,7 @@ public class PokerGame2 {
         lookPoker("流萤", player1);
         lookPoker("卡夫卡", player2);
         lookPoker("我", player3);
+
     }
 
     public void order(ArrayList<String> list) {
