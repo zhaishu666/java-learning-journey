@@ -14,10 +14,10 @@ public class A03_TryCatchPractice1 {
                 int age = Integer.parseInt(sc.nextLine());
                 gf.setAge(age);
                 break;
-            } catch (NumberFormatException e) {
-                System.out.println(e.getMessage());
-            }catch (RuntimeException e) {
-                System.out.println(e.getMessage());
+            } catch (NameFormatException e) {
+                e.printStackTrace();
+            }catch (AgeOutOfBoundsException e) {
+                e.printStackTrace();
             }
         }
 

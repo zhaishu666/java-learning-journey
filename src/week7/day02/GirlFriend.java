@@ -32,7 +32,7 @@ public class GirlFriend {
             throw new NullPointerException("名字不能为空");
         }
         if (name.length() < 3 || name.length() > 10) {
-            throw new RuntimeException("名字长度不符合要求");
+            throw new NameFormatException(name + "长度不符合要求,应在3~10之间");
         }
         this.name = name;
     }
@@ -53,7 +53,7 @@ public class GirlFriend {
      */
     public void setAge(int age) {
         if (age < 18 || age > 100) {
-            throw new RuntimeException("这岁数你认真的吗?");
+            throw new AgeOutOfBoundsException("这年龄你是认真的吗?");
         }
         this.age = age;
     }
