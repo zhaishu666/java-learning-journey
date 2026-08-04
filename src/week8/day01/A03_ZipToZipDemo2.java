@@ -33,7 +33,7 @@ public class A03_ZipToZipDemo2 {
         if (file.isDirectory()) {
             //如果是文件夹,zip条目规范,结尾必须加上/
             ZipEntry zipEntry = new ZipEntry(entryPath + "/");
-            zos.putNextEntry(zipEntry);  //开启一个压缩条目,后续所有添加的数据归属该条目
+            zos.putNextEntry(zipEntry);  //开启一个压缩条目,这里的目的是为了向zip输出流写入文件夹的头部信息
             zos.closeEntry();
 
             File[] files = file.listFiles();
