@@ -8,7 +8,7 @@ public class A05_IODemo4 {
 
         //通过FileWriter的对象写出内容
 
-        FileWriter fw = new FileWriter("E:/develpment/base-code/java-learning-journey/写入测试.txt");
+        FileWriter fw = new FileWriter("E:/develpment/base-code/java-learning-journey/configuration.properties");
 
         char[] chars = {'我','是','帅','b'};
         //fw.write(25105); //写出一个字符,()内为这个字符的Unicode编码值
