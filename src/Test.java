@@ -26,8 +26,15 @@ public class Test {
                         sc.nextLine();
                         System.out.println("请输入要添加的人的姓名");
                         String inputName = sc.nextLine();
+                        if(!manager.checkName(inputName)){
+                            break;
+                        }
                         System.out.println("请输入要添加的人的电话号码");
                         String inputPhone = sc.nextLine();
+                        if (!manager.checkPhone(inputPhone)) {
+                            System.out.println("电话号码格式不正确!请重新输入");
+                            break;
+                        }
                         System.out.println("请输入要添加的人的邮箱");
                         String inputEmail = sc.nextLine();
                         System.out.println("请输入备注");
@@ -46,8 +53,15 @@ public class Test {
                         sc.nextLine();
                         System.out.println("请输入要修改的人的姓名");
                         String changeName = sc.nextLine();
+                        if(!manager.checkName(changeName)){
+                            break;
+                        }
                         System.out.println("请输入要修改的人的电话号码");
                         String changePhone = sc.nextLine();
+                        if (!manager.checkPhone(changePhone)) {
+                            System.out.println("电话号码格式不正确!请重新输入");
+                            break;
+                        }
                         System.out.println("请输入要修改的人的邮箱");
                         String changeEmail = sc.nextLine();
                         System.out.println("请输入修改后的备注");
@@ -67,7 +81,11 @@ public class Test {
                         sc.nextLine();
                         System.out.println("请输入要查询的人的姓名");
                         Contact searchedContact = manager.searchByName(sc.nextLine());
-                        System.out.println(searchedContact);
+                        if(searchedContact != null){
+                            System.out.println(searchedContact);
+                        }else {
+                            System.out.println("未找到联系人");
+                        }
                         break;
                     case 6:
                         manager.saveToFile("src/Contactmsg.txt");
