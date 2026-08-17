@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bookstore>
+    <book id="b01" category="java">
+        <title>Java核心技术</title>
+        <author>霍斯特曼</author>
+        <price>89.0</price>
+    </book>
+    <book id="b02" category="python">
+        <title>Python编程从入门到实践</title>
+        <author>埃里克·马瑟斯</author>
+        <price>59.9</price>
+    </book>
+    <book id="b03" category="java">
+        <title>Effective Java</title>
+        <author>Joshua Bloch</author>
+        <price>129.0</price>
+    </book>
+</bookstore>
