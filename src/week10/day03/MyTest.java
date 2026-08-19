@@ -7,8 +7,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface MyAnno1 {
-    public String name();
+public @interface MyTest {
 
-    public int age();
 }
