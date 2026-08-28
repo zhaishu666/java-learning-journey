@@ -334,9 +334,45 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
 </details>
 
 **我的初答**：
-1. 
+1. select avg(salary),max(salary) from employees where hire_date > 2020-01-01 group by status having status = 1 order by desc;
+2. where用于分组前过滤日期是否符合条件,having用于分组后选择在职人员
 
 **错漏点**：
+
+**错误 1**：hire_date > 2020-01-01 —— 日期没加引号（最隐蔽的坑）
+
+不加引号时，MySQL 把 2020-01-01 当成数学减法来算：2020 - 1 - 1 = 2018。于是你的条件实际变成了：
+
+    WHERE hire_date > 2018   -- 日期和数字比较，2018 会被转成 '2018-00-00' 之类的值
+结果不一定报错，但查出来的数据范围完全不对。**日期、字符串常量必须加引号**
+
+**错误 2**：SELECT 和 GROUP BY 都漏了 department_id
+
+题目要求“统计每个部门的……”，这意味着结果必须按部门区分，输出列里必须有部门：
+
+    SELECT avg(salary), max(salary) ...     -- ❌ 只有聚合值，看不出哪行是哪个部门
+    GROUP BY status                          -- ❌ 按在职状态分组了，而不是按部门
+规则：用了 GROUP BY 后，SELECT 里的列要么是分组列，要么是聚合函数，不能有其他裸列。这里分组列应该是 department_id。
+
+**错误 3**：status = 1 放错了地方——这是全题的核心考点
+
+问题有两个：
+
+1. status 是行级属性，不是组级属性。“是不是在职”是每一行数据自己的特征，应该在分组之前就把离职的行踢掉——这是 WHERE 的职责
+2. 按你的写法，其实是把全表按 status 分成了“在职组”和“离职组”两个大组，再各算一遍平均薪资——和题目要的“每个部门”完全对不上
+
+判断标准一句话：这个条件是“**某一行满不满足**”（→ WHERE），还是“一组数据**算完之后**满不满足”（→ HAVING）。“入职在 2020 后”是逐行判断，“平均薪资 > 8000”是组算完才能判断——这就自然引出两种过滤的分工。
+
+**错误 4**：ORDER BY desc —— 排序依据不能省
+
+降序关键字 DESC 只是修饰，告诉数据库“按什么降序”，那个“什么”不能少。而且排序依据应该是题目要求的“平均薪资”：
+
+    ORDER BY AVG(salary) DESC          -- ✅ 用聚合函数
+    ORDER BY 平均薪资 DESC             -- ✅ 或用别名（MySQL 支持）
+
+**错误 5**：漏了“员工人数”
+
+题目要求三项统计：人数、平均薪资、最高薪资，你只写了后两项，缺 COUNT(*)。
 
 
 ### 题目2：聚合函数对 NULL 的处理（COUNT、SUM、AVG 的行为差异）
@@ -419,6 +455,8 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
 </details>
 
 **我的初答**：
+
+
 **错漏点**：
 
 
@@ -470,6 +508,86 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
   - HAVING 在 SELECT 之后执行（但部分数据库如 MySQL 允许 HAVING 使用别名，因为它在 SELECT 之后处理）。
   - ORDER BY 在 SELECT 之后执行，此时别名已经生成，可直接引用。
 - 注意：虽然 MySQL 允许 HAVING 使用别名，但标准 SQL 中应使用聚合函数或原始表达式以保证可移植性。
+</details>
+
+**我的初答**：
+1. FROM employees
+2. WHERE hire_date > '2020-01-01'
+3. 
+
+**错漏点**：
+
+---
+
+## Day 34 (2026-08-28) —— DCL 与 MySQL 函数
+
+### 题目1：DCL 中 GRANT 与 REVOKE 的权限层级及角色管理
+> 在 MySQL 中，数据库管理员需要为新员工 `zhangsan` 创建一个账号，该账号仅能从本地（localhost）连接，并拥有对 `order_db` 数据库中所有表的 `SELECT`、`INSERT`、`UPDATE` 权限，但无权删除数据（`DELETE`）或修改表结构（`ALTER`）。请写出完整的 `CREATE USER` 和 `GRANT` 语句。追问：若后续需要收回该用户的 `UPDATE` 权限，应执行什么命令？若该用户拥有 `WITH GRANT OPTION` 权限，存在什么安全风险？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 创建用户及授权语句（缩进表示）：
+  CREATE USER 'zhangsan'@'localhost' IDENTIFIED BY 'SecurePass123';
+  GRANT SELECT, INSERT, UPDATE ON order_db.* TO 'zhangsan'@'localhost';
+- 权限层级说明：
+  - 全局层级（`*.*`）：覆盖所有数据库。
+  - 数据库层级（`order_db.*`）：覆盖指定数据库的所有表。
+  - 表层级（`order_db.orders`）：覆盖指定表。
+  - 列层级：可针对特定列授权（如 `UPDATE (name)`），但生产环境较少使用。
+- 回收权限：
+  REVOKE UPDATE ON order_db.* FROM 'zhangsan'@'localhost';
+- `WITH GRANT OPTION` 风险：该权限允许用户将自己拥有的权限授予其他用户，可能导致权限扩散，违背最小权限原则。除非有明确委派需求，否则应禁止。
+- 注意：修改权限后需执行 `FLUSH PRIVILEGES;`（但在 MySQL 中，GRANT/REVOKE 会自动刷新，通常不需要）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：字符串函数中 CHAR_LENGTH 与 LENGTH 的编码差异
+> 现有表 `articles` 含字段 `title VARCHAR(100)`，存储字符串 `'你好MySQL'`（UTF-8 编码）。执行 `SELECT CHAR_LENGTH(title), LENGTH(title) FROM articles;` 分别返回什么结果？为什么？若想按字节长度截断字符串（如保留前 6 个字节），应使用哪个函数？在定义 `VARCHAR` 字段时，`VARCHAR(100)` 中的 100 是指字符数还是字节数？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 结果差异：
+  - `CHAR_LENGTH(title)`：返回**字符数**，结果为 7（'你'、'好'、'M'、'y'、'S'、'Q'、'L'）。
+  - `LENGTH(title)`：返回**字节数**。UTF-8 中，中文占 3 字节（'你'和'好'各 3 字节），英文字母和数字占 1 字节，总字节数为 3+3+5=11。
+- 按字节截断函数：
+  使用 `SUBSTRING(title, 1, 6)` 是按字符截断，无法精确按字节。若需按字节截断，应使用 `LEFT(title, 6)` 也是按字符，不适用。MySQL 没有直接按字节截取字符串的内置函数（除非转换字符集），通常需在应用层处理。若必须，可先用 `CONVERT(title USING latin1)` 强制转换再截取（但会乱码）。
+- VARCHAR(100) 含义：
+  在 MySQL 5.0+ 中，`VARCHAR(100)` 表示最多存储 **100 个字符**（而非字节），无论是英文、中文还是其他多字节字符，均按字符数计数。但实际存储时受单行最大 65535 字节的限制。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：日期函数 DATEDIFF、DATE_ADD 与 TIMESTAMPDIFF 的实战应用
+> 在用户成长值系统中，需要计算用户的「会员等级有效期」是否在 30 天内到期，并查询注册满 90 天的用户名单。现有 `users` 表，含 `registration_date`（注册日期）和 `vip_expiry_date`（会员到期日）。请写出以下查询：
+> 1. 查询所有会员将在 30 天内到期的用户（包括已过期的）。
+> 2. 查询注册时间恰好满 90 天的用户（精确到日）。
+> 3. 解释 `DATEDIFF`、`TIMESTAMPDIFF` 与 `DATE_ADD` 在计算日期差值时的应用场景差异。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 查询1（会员在 30 天内到期，含已过期但未超过30天）：
+  SELECT * FROM users
+  WHERE DATEDIFF(vip_expiry_date, CURDATE()) BETWEEN 0 AND 30;
+  或使用 TIMESTAMPDIFF：
+  WHERE TIMESTAMPDIFF(DAY, CURDATE(), vip_expiry_date) BETWEEN 0 AND 30;
+  注意：`DATEDIFF` 返回天数差（忽略时间部分），`CURDATE()` 返回当前日期。
+- 查询2（注册满 90 天）：
+  SELECT * FROM users
+  WHERE DATEDIFF(CURDATE(), registration_date) = 90;
+  或 `DATE_ADD(registration_date, INTERVAL 90 DAY) = CURDATE()`。
+- 函数差异：
+  - `DATEDIFF(end, start)`：仅返回天数差（整数），忽略时间。
+  - `TIMESTAMPDIFF(unit, start, end)`：支持更精细的单位（SECOND、MINUTE、HOUR、DAY、MONTH、YEAR），且结果可正可负，适用于跨月/跨年精确计算（如年龄计算）。
+  - `DATE_ADD(date, INTERVAL expr unit)`：用于日期增加/减少，常用于生成未来时间点。
+- 提示：计算会员是否过期，建议统一使用 `vip_expiry_date < CURDATE()` 判断已过期，避免 BETWEEN 带来的边界问题。
 </details>
 
 **我的初答**：
