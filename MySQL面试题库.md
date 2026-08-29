@@ -513,9 +513,24 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
 **我的初答**：
 1. FROM employees
 2. WHERE hire_date > '2020-01-01'
-3. 
+3. GROUP BY department_id HAVING avg_sal > 8000
+4. SELECT department_id,AVG(salary) AS avg_sal
+5. ORDER BY avg_sal DESC
+6. LIMIT 5
+7. 因为再执行where时还未执行SELECT,所以别名avg_sal还未出现,所以无法使用.而order by和having都在select之后执行,故可以使用.
+8. 在where中尝试avg_sal数据库会报未找到avg_sal.
 
 **错漏点**：
+
+**HAVING 能用别名的原因**（这是你初答中需要修正的地方）：
+按逻辑执行顺序，HAVING 其实在 SELECT **之前**执行，所以严格按 SQL 标准，HAVING 里也应该写 HAVING AVG(salary) > 8000。MySQL 做了扩展，允许 HAVING 直接引用 SELECT 中定义的别名，这是语法糖，并非因为它"在 SELECT 之后执行"。在 PostgreSQL、Oracle 等严格遵循标准的数据库中，HAVING avg_sal > 8000 同样会报错。
+
+MySQL 会报：
+
+ERROR 1054 (42S22): Unknown column 'avg_sal' in 'where clause'
+
+即"where 子句中存在未知列 avg_sal"。其他数据库报错文案类似，如 PostgreSQL 报 column "avg_sal" does not exist。
+
 
 ---
 
@@ -542,7 +557,25 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
 </details>
 
 **我的初答**：
+1. create user 'zhangsan'@'localhost' identified by '123456';
+2. grant select,insert,update on order_db@* to 'zhangsan'@'localhost';
+3. revoke update on order_db@* from 'zhangsan'@'localhost';
+4. 若该用户拥有with grant option 可能会给与他人权限,然后他人又赋予另外人权限.这样会导致管理员不知道到底谁拥有权限,造成权限管理混乱
+
 **错漏点**：
+- **你初答中的错误**：`order_db@*` 应为 `order_db.*`（点号，不是 @）。
+- @ 用于分隔用户名和主机：'zhangsan'@'localhost'
+- 权限对象（库.表）之间用 .：order_db.* 表示 order_db 库下的所有表 
+- 这种写法在 MySQL 中会直接报语法错误。
+
+三、追问 2：WITH GRANT OPTION 的安全风险
+- `WITH GRANT OPTION` 允许被授权者把自己拥有的权限**再授予其他用户**。你的回答抓住了核心（权限扩散、管理混乱），可以更结构化地表述：
+1. **权限失控扩散**：zhangsan 可以把 SELECT/INSERT/UPDATE 转授给任意其他账号，甚至对方再转授给第三人，形成链式扩散，管理员无法准确掌握"到底谁能访问数据"。
+2. **审计困难**：权限来源链变长，出现数据泄露时难以追溯责任主体。
+3. **违背最小权限原则**：DBA 原本只想给 zhangsan 一个人授权，GRANT OPTION 实际上让"授权决策权"也外包了出去。
+4. **级联回收问题**：回收权限时如果带 `CASCADE` 语义，可能连带影响一串下游用户，引发业务故障（MySQL 的 REVOKE 不级联，但链条本身仍存在）。
+  
+实践建议：生产环境几乎不应给普通业务账号授予 WITH GRANT OPTION，授权操作应只由 DBA 集中执行。
 
 
 ### 题目2：字符串函数中 CHAR_LENGTH 与 LENGTH 的编码差异
@@ -588,6 +621,83 @@ latin1：≈ 65,532（可空）/ 65,533（NOT NULL）
   - `TIMESTAMPDIFF(unit, start, end)`：支持更精细的单位（SECOND、MINUTE、HOUR、DAY、MONTH、YEAR），且结果可正可负，适用于跨月/跨年精确计算（如年龄计算）。
   - `DATE_ADD(date, INTERVAL expr unit)`：用于日期增加/减少，常用于生成未来时间点。
 - 提示：计算会员是否过期，建议统一使用 `vip_expiry_date < CURDATE()` 判断已过期，避免 BETWEEN 带来的边界问题。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 35 (2026-08-29) —— MySQL 约束（主键、外键、唯一键、检查约束、默认值）
+
+### 题目1：主键、唯一键、外键在数据完整性与底层索引上的本质差异
+> 请从以下三个维度对比 `PRIMARY KEY`、`UNIQUE KEY` 和 `FOREIGN KEY` 约束：
+> 1. 数据完整性保证（是否允许 NULL、是否允许重复、是否级联操作）。
+> 2. 底层索引类型（聚集索引 vs 辅助索引，对查询性能的影响）。
+> 3. 对外键约束的级联操作（`ON DELETE CASCADE` / `ON UPDATE CASCADE`）在实际生产环境中的风险。追问：为什么 InnoDB 强制要求外键列上必须有索引？若没有索引，InnoDB 会自动创建吗？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 数据完整性对比：
+  - PRIMARY KEY：唯一且非空，每表仅一个。保证实体完整性。
+  - UNIQUE KEY：唯一但允许 NULL（可多个 NULL），每表可多个。保证唯一性约束。
+  - FOREIGN KEY：引用父表主键或唯一键，保证参照完整性。插入/更新子表时会检查父表是否存在对应值。
+- 底层索引差异：
+  - PRIMARY KEY：InnoDB 自动生成**聚集索引**，叶子节点存储完整行数据，表数据按主键顺序存储。查询最快（无需回表）。
+  - UNIQUE KEY：生成**辅助索引**，叶子节点仅存储主键值。查询时需回表获取完整行（除非覆盖索引）。
+  - FOREIGN KEY：InnoDB 不会自动创建索引，但强烈建议手动创建。若外键列无索引，删除父表行时会锁全表（因无法快速定位子表记录）。
+- 外键级联操作风险（`ON DELETE CASCADE`）：
+  删除父表行会**自动删除子表中所有引用该行的记录**，若误操作（如无 WHERE 条件的 DELETE）会导致大量子表数据丢失，极难恢复。生产环境通常**禁用外键级联**，由应用层逻辑管理。
+- 外键索引追问：InnoDB **不会自动创建**外键列索引。但官方文档明确建议手动添加，否则在父表更新/删除时会触发全表扫描，严重拖累性能，甚至导致死锁。
+</details>
+
+**我的初答**：
+1. PRIMARY KEY 
+
+**错漏点**：
+
+
+### 题目2：CHECK 约束在 MySQL 不同版本中的生效差异及替代方案（ENUM 的陷阱）
+> 在 MySQL 5.7 中执行 `CREATE TABLE employee (id INT, age INT, CHECK (age >= 18));` 后，插入 `age=16` 的记录会被阻止吗？在 MySQL 8.0 中呢？若业务需要在 5.7 中强制年龄大于等于 18，除了应用层校验，还有哪些数据库层方案（如触发器）？若使用 `ENUM('M','F')` 约束性别，插入 'X' 在严格模式和非严格模式下分别会发生什么？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 版本差异：
+  - MySQL 5.7 及之前：`CHECK` 约束**被解析但完全忽略**，不生效。插入 `age=16` 不会报错，数据成功写入。
+  - MySQL 8.0+：`CHECK` 约束**默认生效**，插入 `age=16` 会报错 `Check constraint 'employee_chk_1' is violated.`
+- 5.7 替代方案（数据库层强制）：
+  1. 使用 **触发器**（`BEFORE INSERT` 和 `BEFORE UPDATE`）检查年龄，若 < 18 则通过 `SIGNAL SQLSTATE '45000'` 抛出异常，阻止操作。
+  2. 使用 **ENUM 枚举**或 **SET** 类型（但仅适用于离散值，不适用于范围）。
+  3. **存储过程**封装 DML 操作（业务强制调用过程）。
+- ENUM 插入非法值行为：
+  - **严格模式**（`STRICT_TRANS_TABLES` 或 `STRICT_ALL_TABLES`）：插入 'X' 直接报错，语句回滚。
+  - **非严格模式**：插入 'X' 产生警告，但数据被截断为**空字符串**（`''`），导致数据不一致（无法区分合法空值 vs 非法值）。
+- 最佳实践：升级到 MySQL 8.0 或使用触发器 + 严格模式；ENUM 已被广泛视为反模式，推荐使用 `CHECK`（8.0）或外键字典表。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：NOT NULL 与 DEFAULT 的组合陷阱、自增字段的显式插入行为
+> 现有表 `product`：`id INT PRIMARY KEY AUTO_INCREMENT`，`name VARCHAR(50) NOT NULL DEFAULT '未命名'`，`price DECIMAL(10,2) NOT NULL`。
+> 1. 执行 `INSERT INTO product (name) VALUES (NULL);` 会发生什么？为什么？
+> 2. 执行 `INSERT INTO product (price) VALUES (19.99);` 后，`id` 和 `name` 分别被赋予什么值？
+> 3. 执行 `INSERT INTO product (id, name, price) VALUES (100, '键盘', 99.00);` 后，下一次 `AUTO_INCREMENT` 从多少开始？若再次插入不指定 id 的行，新 id 是 101 还是其他值？
+     > 追问：若将 `id` 设为 `AUTO_INCREMENT` 且未指定值，但显式插入 `id = 0`，InnoDB 会如何处理（与 `sql_mode` 中的 `NO_AUTO_VALUE_ON_ZERO` 有关）？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 问题1：插入失败，抛出 `Column 'name' cannot be null`。因为 `name` 字段有 `NOT NULL` 约束，显式插入 NULL 会违反约束（即使有 DEFAULT 值，DEFAULT 仅在**未指定该列**时生效，而非插入 NULL 时）。
+- 问题2：`id` 自动生成为下一个自增值（如 1），`name` 使用 DEFAULT 值 `'未命名'`，`price` 为 19.99。INSERT 语句仅指定 `price`，未指定 `id` 和 `name`，因此它们各自使用 DEFAULT（AUTO_INCREMENT 生成自增 ID，字符串使用默认值）。
+- 问题3：显式插入 `id=100` 后，InnoDB 的自增计数器会更新为 `max(id) + 1 = 101`。下次不指定 id 的插入，新 id 为 101（而非从 1 重新开始）。
+- 关于插入 `id = 0` 的行为（受 `NO_AUTO_VALUE_ON_ZERO` 控制）：
+  - 默认情况（`NO_AUTO_VALUE_ON_ZERO` 未设置）：插入 `id=0` 会被视为“未指定”，自动生成新自增值。
+  - 若启用 `sql_mode='NO_AUTO_VALUE_ON_ZERO'`，插入 `id=0` 会**显式写入 0**（不触发自增），可用于保留特定占位值。
+- 最佳实践：显式插入自增列时，务必确保该值大于当前最大值，否则可能引发主键冲突或自增计数器异常。
 </details>
 
 **我的初答**：
