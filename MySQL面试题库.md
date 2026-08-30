@@ -704,3 +704,92 @@ ERROR 1054 (42S22): Unknown column 'avg_sal' in 'where clause'
 **错漏点**：
 
 ---
+
+## Day 36 (2026-08-30) —— MySQL 多表查询（连接查询、子查询、联合查询）
+
+### 题目1：INNER JOIN、LEFT JOIN 与 RIGHT JOIN 的结果集差异及 ON 与 WHERE 对 NULL 的过滤时机
+> 现有两张表：`students`（学生 id, name）和 `scores`（成绩 id, student_id, subject, score）。请回答以下问题：
+> 1. 查询所有学生及其成绩（包括无成绩的学生），应使用哪种连接？若使用 INNER JOIN，结果会缺少什么？
+> 2. 若查询语句为：`SELECT s.name, sc.score FROM students s LEFT JOIN scores sc ON s.id = sc.student_id AND sc.subject = 'Math';` 与 `SELECT s.name, sc.score FROM students s LEFT JOIN scores sc ON s.id = sc.student_id WHERE sc.subject = 'Math';` 结果有何不同？为什么？
+> 3. RIGHT JOIN 在什么场景下会优于 LEFT JOIN？请举例说明。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 问题1：应使用 **LEFT JOIN**（或 RIGHT JOIN），以保留左表（students）所有行。INNER JOIN 仅返回有成绩匹配的学生，无成绩的学生会被排除。
+- 问题2：
+  - 第一个查询（条件在 ON）：返回所有学生，若学生有 Math 成绩则显示分数，否则分数为 NULL。其他科目成绩不会干扰结果。
+  - 第二个查询（条件在 WHERE）：先进行 LEFT JOIN 连接所有成绩，然后 WHERE 过滤 `subject = 'Math'`，这会**将无成绩的学生（分数为 NULL）也一并过滤掉**，结果等同于 INNER JOIN（仅显示有 Math 成绩的学生）。
+  - 核心：ON 决定连接方式（保留左表全部行），WHERE 对连接后的结果集进行筛选。
+- 问题3：RIGHT JOIN 在需要保留右表全部行时使用，但通常可通过调换表的顺序用 LEFT JOIN 实现相同效果，因此 RIGHT JOIN 使用较少。例如，查询所有科目及其有成绩的学生，若科目表在右，可用 RIGHT JOIN。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：自连接（Self Join）的应用场景——查询员工及其经理
+> 现有 `employees` 表：`id`、`name`、`manager_id`（经理的员工 id，若为 NULL 表示顶级领导）。请写出 SQL 查询，返回每个员工的姓名及其经理的姓名，包括没有经理的员工（显示为 "无经理"）。若需查询所有经理及其下属人数，该如何编写？追问：自连接与非关联子查询在性能上有何差异？哪种更优？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 查询员工及经理姓名（含无经理）：
+  SELECT e.name AS employee,
+  COALESCE(m.name, '无经理') AS manager
+  FROM employees e
+  LEFT JOIN employees m ON e.manager_id = m.id;
+  使用 LEFT JOIN 保留所有员工，经理表 m 可能无匹配（manager_id 为 NULL），用 COALESCE 替换为 '无经理'。
+- 查询各经理及其下属人数：
+  SELECT m.name AS manager, COUNT(e.id) AS subordinates
+  FROM employees m
+  INNER JOIN employees e ON m.id = e.manager_id
+  GROUP BY m.id, m.name;
+  注意：若经理无下属，则不会出现在此结果中（可使用 LEFT JOIN 和 COALESCE(COUNT(e.id), 0) 显示 0）。
+- 自连接 vs 子查询性能：
+  - 自连接（JOIN）通常比子查询（如标量子查询）更高效，因为数据库优化器可更灵活地选择驱动表和索引。
+  - 对于查询每个员工的经理姓名，自连接只需一次表扫描，而子查询可能逐行执行多次。因此优先使用自连接。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：UNION 与 UNION ALL 的区别及对结果排序的影响
+> 现有两张结构相同的表：`orders_2023` 和 `orders_2024`，均含 `id`、`order_date`、`amount`。需要查询两年所有订单并按日期降序排列，请写出两种写法（分别使用 UNION 和 UNION ALL），并说明两者在去重、性能、以及最终排序上的差异。若两个表中有完全相同的记录（id、日期、金额均相同），UNION 和 UNION ALL 的结果会有什么不同？追问：若需要对最终结果去重，但希望保留重复记录中的某一条，应如何实现？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 使用 UNION（去重）：
+  SELECT id, order_date, amount FROM orders_2023
+  UNION
+  SELECT id, order_date, amount FROM orders_2024
+  ORDER BY order_date DESC;
+- 使用 UNION ALL（保留全部，效率更高）：
+  SELECT id, order_date, amount FROM orders_2023
+  UNION ALL
+  SELECT id, order_date, amount FROM orders_2024
+  ORDER BY order_date DESC;
+- 差异：
+  - 去重：UNION 会去除完全相同的行（所有字段均相同）；UNION ALL 保留所有行。
+  - 性能：UNION ALL 不执行去重操作，速度更快，内存占用更少。
+  - 排序：两者均可在最后整体排序，但若对每个子查询单独排序再 UNION，会多一次排序开销，通常不推荐。
+- 保留一条重复记录的方法：若需去重但保留指定字段（如保留最新 id），可先使用 `ROW_NUMBER()` 窗口函数（MySQL 8.0+）分组排序，再 UNION ALL 合并。
+  示例（仅保留 2023 和 2024 各自最新的一条）：
+  WITH combined AS (
+  SELECT *, 1 AS year FROM orders_2023
+  UNION ALL
+  SELECT *, 2 AS year FROM orders_2024
+  )
+  SELECT id, order_date, amount FROM combined
+  WHERE (year, order_date) IN (SELECT year, MAX(order_date) FROM combined GROUP BY year);
+  （此方法较复杂，实际常用 GROUP BY + MAX 或临时表）
+- 注意：MySQL 8.0 之前不支持窗口函数，可用子查询替代。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
