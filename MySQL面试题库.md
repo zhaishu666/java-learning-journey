@@ -793,3 +793,144 @@ ERROR 1054 (42S22): Unknown column 'avg_sal' in 'where clause'
 
 ---
 
+## Day 37 (2026-08-31) —— MySQL 综合复习（DQL、约束、事务）
+
+### 题目1：多表连接 + 聚合函数 + 子查询的嵌套应用（统计各部门最高薪资员工信息）
+> 现有三张表：`departments`（部门 id, name）、`employees`（员工 id, name, salary, dept_id, hire_date）、`salary_changes`（员工 id, change_date, new_salary，记录每次调薪）。请写出以下 SQL 查询：
+> 1. 查询每个部门中薪资最高的员工姓名及薪资，并按部门名称排序。
+> 2. 在上一个查询结果中，额外显示该员工的薪资相较于其入职时的初始薪资（即 `salary_changes` 表中该员工最早的记录）的增长率（百分比），若没有调薪记录则显示为 0。
+> 3. 仅显示增长率大于 20% 的部门及员工信息。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 查询1（使用子查询或窗口函数）：
+  使用子查询方式（兼容 5.7）：
+  SELECT d.name AS dept_name, e.name AS emp_name, e.salary
+  FROM employees e
+  JOIN departments d ON e.dept_id = d.id
+  WHERE (e.dept_id, e.salary) IN (
+  SELECT dept_id, MAX(salary) FROM employees GROUP BY dept_id
+  )
+  ORDER BY d.name;
+
+  使用窗口函数方式（8.0+）：
+  SELECT d.name, e.name, e.salary
+  FROM (
+  SELECT *, RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employees
+  ) e
+  JOIN departments d ON e.dept_id = d.id
+  WHERE rk = 1
+  ORDER BY d.name;
+
+- 查询2（加入调薪增长率计算）：
+  WITH max_sal_emp AS (
+  SELECT e.id, e.name, e.salary, e.dept_id
+  FROM employees e
+  WHERE (e.dept_id, e.salary) IN (
+  SELECT dept_id, MAX(salary) FROM employees GROUP BY dept_id
+  )
+  ),
+  init_sal AS (
+  SELECT id, new_salary AS init_salary
+  FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY change_date) AS rn
+  FROM salary_changes
+  ) t WHERE rn = 1
+  )
+  SELECT d.name AS dept_name,
+  m.name AS emp_name,
+  m.salary AS current_salary,
+  COALESCE(i.init_salary, m.salary) AS init_salary,
+  ROUND((m.salary - COALESCE(i.init_salary, m.salary)) / COALESCE(i.init_salary, m.salary) * 100, 2) AS growth_rate
+  FROM max_sal_emp m
+  JOIN departments d ON m.dept_id = d.id
+  LEFT JOIN init_sal i ON m.id = i.id;
+
+- 查询3（过滤增长率 > 20%）：
+  在前一个查询外层加 `WHERE growth_rate > 20` 即可。若增长率因除数 NULL 产生异常，需用 COALESCE 处理。
+- 注意：未调薪员工增长率视为 0（因 init_salary = current_salary）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：约束综合设计（包含 PRIMARY KEY、FOREIGN KEY、UNIQUE、CHECK 及 ON DELETE 策略）
+> 设计一个电商数据库订单模块，包含 `customers`（客户表）和 `orders`（订单表），满足以下要求：
+> 1. `customers` 表：id 主键自增，name 非空，email 唯一且非空，age 要求 >= 18。
+> 2. `orders` 表：id 主键自增，customer_id 外键引用 customers.id，order_date 默认当前日期，total_amount 必须大于 0。
+> 3. 当删除客户时，若该客户有订单则禁止删除（`RESTRICT`）。
+> 4. 若修改客户 id，自动更新订单表中的 customer_id（`ON UPDATE CASCADE`）。
+     > 请写出完整的建表语句（MySQL 8.0 语法）。追问：若使用 MySQL 5.7，`CHECK` 约束不生效，应如何改造以保证 age >= 18？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 建表语句（MySQL 8.0）：
+  CREATE TABLE customers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50) NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  age INT CHECK (age >= 18)
+  );
+
+  CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  customer_id INT NOT NULL,
+  order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+  total_amount DECIMAL(10,2) CHECK (total_amount > 0),
+  CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id)
+  REFERENCES customers(id)
+  ON DELETE RESTRICT
+  ON UPDATE CASCADE
+  );
+
+- 5.7 替代方案（触发器模拟 CHECK）：
+  DELIMITER //
+  CREATE TRIGGER check_customer_age BEFORE INSERT ON customers
+  FOR EACH ROW
+  BEGIN
+  IF NEW.age < 18 THEN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Age must be at least 18';
+  END IF;
+  END;//
+  DELIMITER ;
+  同时需要创建 `BEFORE UPDATE` 触发器覆盖更新场景。
+
+- 级联行为解析：
+  - `ON DELETE RESTRICT`：阻止删除被引用的父行（默认行为），若必须先删除子表再删父表。
+  - `ON UPDATE CASCADE`：父表 id 更新时，子表外键自动同步，避免手动维护。
+- 注意：外键列 `customer_id` 必须添加索引（`CREATE INDEX idx_orders_customer ON orders(customer_id);`），否则删除父表时会锁全表。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：事务隔离级别下的 UPDATE 丢失更新与间隙锁场景（RR vs RC）
+> 现有 `products` 表：`id` 主键，`stock` 库存字段，`category` 分类字段（普通索引）。在以下场景中，分析 `REPEATABLE-READ` 和 `READ-COMMITTED` 隔离级别的表现：
+> 1. 事务 A：`UPDATE products SET stock = stock - 1 WHERE category = 'electronics';` 假设该分类有 100 条记录。
+> 2. 事务 B（同时执行）：`UPDATE products SET stock = stock - 1 WHERE category = 'electronics';`
+     > 请问两个隔离级别下，事务 A 和 B 分别会锁定哪些行？是否存在间隙锁？若 `category` 列无索引，又会发生什么？如何避免这种锁冲突导致的业务阻塞？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- RR 隔离级别：
+  - 有索引（`category` 普通索引）：事务 A 会锁定所有匹配 `category='electronics'` 的二级索引记录和对应的主键行，同时**在索引间隙加间隙锁**（Gap Lock），防止其他事务插入新的 `electronics` 记录（防幻读）。事务 B 将被阻塞，直到 A 提交。
+  - 无索引：事务 A 会对全表所有行加锁（聚簇索引全部加锁），且间隙锁锁定全表间隙，事务 B 完全阻塞，甚至无法插入任何其他分类的记录。
+- RC 隔离级别：
+  - 有索引：事务 A 仅锁定匹配的二级索引记录和主键行（**无间隙锁**）。事务 B 可以正常执行（不会阻塞，因为两行互不冲突），但可能导致更新丢失（若 A 和 B 同时读取同一行并写回）需配合乐观锁或 `SELECT ... FOR UPDATE`
+  - 无索引：事务 A 会扫描全表，对每一行加行锁，但会逐行释放不匹配的行，最终只锁定匹配的行，但扫描期间仍会产生大量锁，容易死锁。
+- 避免阻塞策略：
+  1. 确保 `WHERE` 条件使用高选择性索引，减少锁范围。
+  2. 使用 `READ-COMMITTED` 配合显式行锁（`FOR UPDATE`）和版本号（乐观锁）避免更新丢失。
+  3. 分批更新（`LIMIT`）降低单次锁持有时间。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
