@@ -725,7 +725,39 @@ ERROR 1054 (42S22): Unknown column 'avg_sal' in 'where clause'
 </details>
 
 **我的初答**：
+1. student左外连接scores表,若使用INNER JOIN 会缺失无scores成绩的学生信息.
+2. ON..AND是同时满足这两个条件时才合并为一个表.
+3. ON..where是先满足ON就合并,之后通过where筛选出sc.subject的行.
+4. 不了解,right join与left join将两个表位置换一下后不是一样的吗?
+
 **错漏点**：
+1. 第一个语句对于'Math'未考的学生会依照LEFT JOIN的规则保留下来
+2. WHERE 不关心 LEFT JOIN 的“保留承诺”，它只留下条件为 TRUE 的行。所以语句 B 实际上退化成了 **INNER JOIN**——这是外连接最常见的坑。
+   
+- ① 连接阶段（ON 起作用）
+- 决定"右表哪一行能配上来"
+- LEFT JOIN 承诺：配不上的左表行也保留（右表补 NULL）
+
+- ② 过滤阶段（WHERE 起作用）
+- 对连接结果逐行筛选
+- 李四、王五的 sc.subject 是 NULL
+- NULL = 'Math' → 结果是 UNKNOWN → 行被 WHERE 丢弃 ❌
+
+一句话口诀
+
+ON 决定“配不配得上”，WHERE 决定“留不留得下”。
+
+对 LEFT JOIN 而言：右表的条件放 ON → 保留全部左表行；放 WHERE → 无匹配的左表行也被删光。
+
+（顺带一提：左表的条件写在哪都一样会过滤，因为 WHERE 过滤左表列不会误伤 NULL 行——只有右表列有这个坑。）
+
+对于RIGHT JOIN
+
+|维度|	结论|
+|---|---|
+|功能|	完全等价，可互相转换|
+|优于 LEFT JOIN 的场景|	主表在右 / 避免重排已有 SQL 时书写更顺手|
+|工程实践|	通常仍推荐统一 LEFT JOIN，保证可读性|
 
 
 ### 题目2：自连接（Self Join）的应用场景——查询员工及其经理
@@ -928,6 +960,79 @@ ERROR 1054 (42S22): Unknown column 'avg_sal' in 'where clause'
   1. 确保 `WHERE` 条件使用高选择性索引，减少锁范围。
   2. 使用 `READ-COMMITTED` 配合显式行锁（`FOR UPDATE`）和版本号（乐观锁）避免更新丢失。
   3. 分批更新（`LIMIT`）降低单次锁持有时间。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 38 (2026-09-01) —— MySQL 事务（ACID、隔离级别、并发问题）
+
+### 题目1：事务的 ACID 特性及其在 MySQL 中的实现机制
+> 请解释事务的四大特性（原子性、一致性、隔离性、持久性）分别由 MySQL 的哪些机制保证？追问：`redo log` 和 `undo log` 分别服务于哪个特性？若事务提交后数据库突然宕机，重启后如何保证已提交事务的修改不丢失？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 原子性（Atomicity）：由 **undo log** 保证。事务执行过程中记录修改前的旧值，若事务回滚，通过 undo log 将数据恢复至修改前的状态。
+- 一致性（Consistency）：由 **应用层逻辑 + 数据库约束**（主键、外键、唯一键、CHECK 等）共同保证。事务执行前后，数据库状态必须满足所有约束和业务规则。
+- 隔离性（Isolation）：由 **锁机制 + MVCC（多版本并发控制）** 保证。不同隔离级别通过不同的锁策略和快照读机制控制并发事务间的可见性。
+- 持久性（Durability）：由 **redo log** 保证。事务提交时，修改先写入 redo log（磁盘顺序写），再异步刷新到数据页。即使宕机，重启时通过 redo log 重做已提交事务的修改，确保数据不丢失。
+- redo log 与 undo log 定位：
+  - redo log（重做日志）：服务持久性，记录物理修改（如“将页 X 的偏移 Y 处的值改为 Z”），用于宕机恢复。
+  - undo log（回滚日志）：服务原子性和 MVCC，记录逻辑修改（如“将某行的某字段改回旧值”），用于回滚和提供一致性读视图。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：事务并发带来的三大问题（脏读、不可重复读、幻读）及隔离级别的解决程度
+> 请分别说明脏读、不可重复读、幻读的现象及本质区别。在 MySQL InnoDB 的 `READ UNCOMMITTED`、`READ COMMITTED`、`REPEATABLE READ`、`SERIALIZABLE` 四种隔离级别下，哪些问题被解决？追问：`REPEATABLE READ` 如何通过 MVCC 解决不可重复读？它是否完全解决了幻读？为什么？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 脏读（Dirty Read）：事务 A 读到事务 B 未提交的修改，若 B 回滚，A 读到的数据就是无效的。本质是**读到了未提交的脏数据**。
+- 不可重复读（Non-Repeatable Read）：事务 A 内两次读取同一行数据，因事务 B 的更新并提交，导致两次结果不同。本质是**同一行数据被其他事务修改**。
+- 幻读（Phantom Read）：事务 A 内两次范围查询，因事务 B 插入了符合条件的新行，导致结果集行数不同。本质是**其他事务插入了新行**。
+- 各隔离级别解决情况（MySQL InnoDB）：
+  - READ UNCOMMITTED：三种问题均未解决。
+  - READ COMMITTED：防止脏读（读已提交），但仍有不可重复读和幻读。
+  - REPEATABLE READ（MySQL 默认）：防止脏读和不可重复读（通过 MVCC 快照读），但 **幻读未完全解决**（快照读无幻读，但当前读（如 `SELECT ... FOR UPDATE`）仍需加间隙锁防止幻读）。
+  - SERIALIZABLE：三种问题全部解决（通过强制串行执行或锁表）。
+- RR 解决不可重复读的机制：基于 MVCC，事务开启时生成一个 `ReadView`（活跃事务列表），查询时只读取 `ReadView` 创建前已提交的数据版本，后续其他事务的提交不影响当前事务的快照。
+- RR 对幻读的处理：快照读（普通 SELECT）无幻读；当前读（`SELECT ... FOR UPDATE` / `UPDATE` / `DELETE`）通过 **间隙锁（Gap Lock）** 锁定索引记录间的间隙，阻止其他事务插入新行，从而避免幻读。但严格来说，RR 并不完全符合 ANSI SQL 标准中的“完全解决幻读”（因快照读和当前读并存）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：事务隔离级别与锁机制的关系——当前读 vs 快照读
+> 在 MySQL 的 `READ COMMITTED` 和 `REPEATABLE READ` 隔离级别下，执行以下操作时，分别使用什么类型的读（快照读或当前读），以及加锁情况如何：
+> 1. `SELECT * FROM products WHERE id = 1;`
+> 2. `SELECT * FROM products WHERE id = 1 FOR UPDATE;`
+> 3. `UPDATE products SET stock = stock - 1 WHERE id = 1;`
+     > 追问：为何在 `REPEATABLE READ` 下，`SELECT` 和 `SELECT ... FOR UPDATE` 的查询结果可能不一致？这种现象是设计缺陷还是有意为之？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 读类型与加锁情况：
+  - `SELECT * FROM products WHERE id = 1;`（普通 SELECT）：
+    - RC：快照读，无锁（每次查询生成新的 ReadView，可读到最新已提交数据）。
+    - RR：快照读，无锁（首次查询生成 ReadView，后续复用，保证可重复读）。
+  - `SELECT ... FOR UPDATE`（当前读）：
+    - RC：行锁（Record Lock），锁定匹配的主键行。
+    - RR：行锁 + 间隙锁（若条件非唯一索引或范围条件），锁定匹配行及间隙，防止幻读。
+  - `UPDATE ... WHERE id = 1;`（当前写）：
+    - RC：行锁（Record Lock）。
+    - RR：行锁 + 间隙锁（基于主键等值查询时，只需锁主键行及索引间隙；若条件为范围或非唯一索引，则额外加间隙锁）。
+- 为何 RR 下 SELECT 与 FOR UPDATE 可能结果不一致：
+  这是 **有意设计**，并非缺陷。快照读（普通 SELECT）基于一致性视图（ReadView），用于高频读场景，避免加锁开销；当前读（FOR UPDATE / UPDATE / DELETE）需要读取最新数据并加锁，保证数据修改的安全性。两者服务于不同场景：快照读追求性能，当前读追求数据准确性和并发控制。
+- 注意：若需在 RR 下始终读到最新数据，应使用 `SELECT ... FOR UPDATE` 或 `LOCK IN SHARE MODE`（共享锁），或显式提交事务后重建快照。
 </details>
 
 **我的初答**：
