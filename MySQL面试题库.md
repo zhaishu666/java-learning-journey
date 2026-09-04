@@ -1305,3 +1305,89 @@ ON 决定“配不配得上”，WHERE 决定“留不留得下”。
 **错漏点**：
 
 ---
+
+## Day 41 (2026-09-04) —— 索引分类与索引语法（创建、查看、删除）
+
+### 题目1：MySQL 索引的分类及各自适用场景（普通索引、唯一索引、主键索引、联合索引、全文索引）
+> 请说明以下索引类型的区别及典型使用场景：
+> 1. 普通索引（INDEX）。
+> 2. 唯一索引（UNIQUE INDEX）。
+> 3. 主键索引（PRIMARY KEY）。
+> 4. 联合索引（组合索引）。
+> 5. 全文索引（FULLTEXT）。
+     > 追问：若表中有大量重复值的列（如性别 `gender`），是否适合建索引？为什么？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 普通索引（INDEX）：最基本的索引，无唯一性约束，允许重复值。用于加速查询（WHERE、ORDER BY）。适用场景：查询条件中的列（如 `name`）。
+- 唯一索引（UNIQUE INDEX）：要求列值唯一（允许 NULL，但仅允许一个 NULL）。保证数据唯一性，同时加速查询。适用场景：业务唯一标识（如身份证号、邮箱）。
+- 主键索引（PRIMARY KEY）：特殊的唯一索引，不允许 NULL，每表仅一个。InnoDB 中作为聚集索引，直接决定数据物理存储顺序。适用场景：表的主键（推荐自增整型）。
+- 联合索引（组合索引）：涉及多个列的索引（如 `(a, b, c)`），遵循最左前缀原则。适用场景：多条件查询、排序（ORDER BY）和分组（GROUP BY）场景。
+- 全文索引（FULLTEXT）：针对文本字段（VARCHAR/TEXT）的关键词搜索（自然语言搜索），支持 `MATCH AGAINST` 语法。仅 MyISAM（5.6 前）和 InnoDB（5.6+）支持。适用场景：文章、博客、评论内容的搜索（如 `MATCH(title, content) AGAINST('MySQL')`）。
+- 重复值高的列（如性别）：不适合建索引。因为索引选择性（`COUNT(DISTINCT col) / COUNT(*)`）极低，优化器可能放弃索引（走全表扫描），且维护索引开销大。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：联合索引的最左前缀原则（创建、使用与失效场景）
+> 现有表 `orders` 创建了联合索引 `idx_order` 在 `(user_id, status, order_date)` 上。请判断以下查询能否使用该索引（能使用哪些列）：
+> 1. `SELECT * FROM orders WHERE user_id = 1;`
+> 2. `SELECT * FROM orders WHERE status = 1 AND user_id = 1;`
+> 3. `SELECT * FROM orders WHERE status = 1;`
+> 4. `SELECT * FROM orders WHERE user_id = 1 AND order_date > '2024-01-01';`
+> 5. `SELECT * FROM orders WHERE user_id = 1 AND status = 1 ORDER BY order_date;`
+     > 追问：若 `WHERE user_id = 1 AND status IN (1, 2) AND order_date > '2024-01-01'`，该索引能用到哪些列？为什么？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 最左前缀原则：联合索引 `(a, b, c)` 相当于创建了 `(a)`、`(a, b)`、`(a, b, c)` 三个索引。查询条件必须从索引最左侧列开始连续匹配，才能利用索引。
+- 判定结果：
+  1. `user_id = 1`：能使用索引的 `user_id` 列。
+  2. `status = 1 AND user_id = 1`：能使用 `user_id` 和 `status`（顺序可交换，优化器自动调整）。
+  3. `status = 1`：无法使用该索引（跳过了最左列 `user_id`）。
+  4. `user_id = 1 AND order_date > '2024-01-01'`：仅能使用 `user_id`（`order_date` 在 `status` 之后，因 `status` 未等值匹配，索引在 `user_id` 后中断，`order_date` 无法参与索引查找，只能过滤）。
+  5. `user_id = 1 AND status = 1 ORDER BY order_date`：能使用 `user_id` 和 `status` 进行等值匹配，并利用 `order_date` 排序（索引有序，避免文件排序）。
+- 追问 `user_id = 1 AND status IN (1, 2) AND order_date > '2024-01-01'`：
+  - 能使用 `user_id`（等值）和 `status`（范围查询 `IN` 被优化器视为范围条件）。因 `status` 是范围条件，后续 `order_date` 无法用于查询匹配（索引在 `status` 后中断），但若索引覆盖则可排序。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：索引的创建与删除语法及查看索引的方式（CREATE INDEX、DROP INDEX、SHOW INDEX、ALTER TABLE）
+> 请回答以下问题：
+> 1. 使用 `CREATE INDEX` 在 `employees` 表的 `hire_date` 列上创建一个普通索引 `idx_hire_date`。
+> 2. 使用 `ALTER TABLE` 在 `employees` 表的 `first_name` 和 `last_name` 上创建一个联合唯一索引 `idx_name_unique`。
+> 3. 如何查看 `employees` 表上所有的索引？
+> 4. 删除索引 `idx_hire_date`。
+     > 追问：若在创建索引时指定 `USING BTREE`，与默认的 `USING BTREE` 有何不同？InnoDB 是否支持 `USING HASH`？若支持，适用什么场景？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 创建普通索引：
+  CREATE INDEX idx_hire_date ON employees(hire_date);
+- 创建联合唯一索引（使用 ALTER TABLE）：
+  ALTER TABLE employees ADD UNIQUE INDEX idx_name_unique (first_name, last_name);
+- 查看索引：
+  SHOW INDEX FROM employees;
+  或使用 `SHOW KEYS FROM employees;`
+- 删除索引：
+  DROP INDEX idx_hire_date ON employees;
+  或 `ALTER TABLE employees DROP INDEX idx_hire_date;`
+- 关于 `USING BTREE`：
+  - InnoDB 索引默认使用 B+ 树（即 `USING BTREE`），显式指定与默认一致，无差异。
+  - InnoDB **支持 `USING HASH`**，但仅用于自适应哈希索引（AHI），不支持用户手动创建哈希索引（若在建表时指定 `USING HASH`，MySQL 会忽略或转换为 B+ 树，取决于版本和存储引擎）。
+  - 若需哈希索引，可使用 `MEMORY` 引擎表（支持 `USING HASH`），适用于等值查询极快的临时表或缓存表。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
