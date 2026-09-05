@@ -1240,8 +1240,50 @@ ON 决定“配不配得上”，WHERE 决定“留不留得下”。
 </details>
 
 **我的初答**：
-**错漏点**：
+1. 索引是数据库中帮助加快查询的数据结构,类似于书的目录,能帮助我们更快定位到查询的数据
+2. InnoDB默认使用B+Tree作为索引,二叉树的层数过高I/O次数过多,哈希表会打散数据,只支持精确查找.B树每个结点都存放数据信息,每次查询时I/O次数不平均,B+Tree更矮,每次I/O都查询叶子结点,I/O次数相等
+3. B+树的叶子结点存放对应行的所有数据,非叶子结点只存放对应指针,B+树非叶子结点只存放指针的方式让它可以存放更多指针,使得B+树的高度相比更低,I/O次数更少.
+4. 不能生效,指针无法判断该模糊匹配具体的位置
 
+**错漏点**：
+<details>
+<summary><strong>点击展开错漏点</strong></summary>
+
+**修正：**
+
+> 索引的本质是**一种以空间换时间的、有序的数据结构**（InnoDB 中即 B+ 树），它把无序的表数据按某些列组织成有序结构，让查询通过 O(log n) 的查找定位数据，而不是全表扫描 O(n)。  
+> 就像书的目录：目录页按章节顺序排列，你先在目录里定位页码，再翻到那一页，而不是一页页翻着找。
+
+### 第 2 问：为什么选 B+ 树？⚠️ 有概念错误
+
+❌ **错误 1**：*“B 树每个结点都存放数据，查询时 I/O 次数不平均”*  
+—— B 树确实所有节点都存数据，但问题不是“不平均”，而是：
+
+- 存了数据 → 每个节点能放的**键和指针变少** → 树更高 → I/O 更多
+- 范围查询需要中序遍历回溯，效率低
+
+❌ **错误 2**：*“每次 I/O 都查询叶子结点，I/O 次数相等”*  
+—— 表述混乱。正确说法是：B+ 树**任何一次查找的路径长度都相同**（必须走到叶子节点），性能稳定。
+
+### 第 3 问：B+ 树存什么？⚠️ 遗漏关键区分
+
+❌ 你说“叶子结点存放对应行的所有数据”——**这只对主键索引（聚簇索引）成立**。
+
+追问：LIKE ‘%张三’ 能用索引吗？⚠️ 结论对，理由错
+
+❌ 你说“指针无法判断该模糊匹配具体的位置”——这不是原因。
+
+**正确解释：**
+
+> B+ 树索引是**按索引列的值从左到右排序**的。`LIKE '张三%'`（前缀匹配）可以利用排序前缀定位到 `张三` 开头的连续区间；而 `'%张三'` 的**前缀不确定**，可能是“李张三”“王张三”……无法在有序结构中圈定一个范围，**索引失效，退化为全表扫描**。
+
+**加分项（面试官会喜欢）：**
+
+- 索引失效的口诀：**“最左前缀原则”** —— `LIKE '%xx'` 和 `LIKE '%_xx'` 左侧模糊都会失效
+- 变通方案：① 存一份反转列（`张三'` → 反转后前缀匹配 `'%三张'` 变为 `'三张%'`）；② 使用全文索引 / ES；③ 若该列是二级索引，MySQL 至少可以做**覆盖扫描**（扫描索引树比全表扫描 I/O 少）
+
+
+</details>
 
 ### 题目2：索引的优缺点与创建索引的原则（覆盖索引 vs 回表）
 > 请列举索引的优缺点（至少各两点），并回答以下问题：
@@ -1384,6 +1426,102 @@ ON 决定“配不配得上”，WHERE 决定“留不留得下”。
   - InnoDB 索引默认使用 B+ 树（即 `USING BTREE`），显式指定与默认一致，无差异。
   - InnoDB **支持 `USING HASH`**，但仅用于自适应哈希索引（AHI），不支持用户手动创建哈希索引（若在建表时指定 `USING HASH`，MySQL 会忽略或转换为 B+ 树，取决于版本和存储引擎）。
   - 若需哈希索引，可使用 `MEMORY` 引擎表（支持 `USING HASH`），适用于等值查询极快的临时表或缓存表。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 42 (2026-09-05) —— 索引性能分析（EXPLAIN、慢查询日志、profile）
+
+### 题目1：EXPLAIN 执行计划的核心字段解读（type、key、rows、Extra、filtered）
+> 使用 `EXPLAIN SELECT * FROM orders WHERE user_id = 100 AND status = 1;` 返回如下执行计划：
+> - `type: ref`
+> - `possible_keys: idx_user, idx_status`
+> - `key: idx_user`
+> - `key_len: 4`
+> - `ref: const`
+> - `rows: 150`
+> - `filtered: 10.00`
+> - `Extra: Using where`
+    > 请解释以下内容：
+> 1. `type` 为 `ref` 表示什么？比 `ALL`、`range`、`eq_ref` 更优还是更差？
+> 2. `rows: 150` 和 `filtered: 10.00` 分别代表什么？它们如何共同影响最终扫描行数？
+> 3. `Extra: Using where` 表示什么？与 `Using index` 有何区别？
+     > 追问：若 `Extra` 中出现 `Using filesort`，表示什么？如何优化？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- type 解读：
+  - `ref`：表示使用非唯一索引进行等值匹配（`=` 或 `<=>`），返回匹配的多行。性能优于 `ALL`（全表扫描）和 `range`（范围查询），但略逊于 `eq_ref`（唯一索引等值匹配，最多返回一行）。
+  - 性能排序（由好到差）：`system` > `const` > `eq_ref` > `ref` > `range` > `index` > `ALL`。
+- rows 与 filtered：
+  - `rows`：优化器估算需扫描的行数（基于索引统计信息）。
+  - `filtered`：表示满足 `WHERE` 条件（或 `JOIN` 条件）的估算行数占比（百分比）。实际最终扫描行数 ≈ `rows * filtered / 100`。本例中，扫描 150 行，其中约 15 行（10%）最终符合条件。
+- Extra 字段：
+  - `Using where`：表示 MySQL 存储引擎返回数据后，还需在 Server 层进行 `WHERE` 条件过滤（通常因无法完全在索引中完成过滤）。
+  - `Using index`：表示覆盖索引（查询所需字段全部在索引中，无需回表），性能最佳。
+  - `Using filesort`：表示需额外排序操作（文件排序），通常因 `ORDER BY` 字段未命中索引，应优化索引或改写查询。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：慢查询日志的开启、分析及优化流程（mysqldumpslow 与 profile）
+> 线上 MySQL 出现 CPU 飙升，疑似存在慢查询。请回答：
+> 1. 如何开启慢查询日志？需要设置哪些参数（`slow_query_log`、`long_query_time`、`log_queries_not_using_indexes`）？
+> 2. 如何分析慢查询日志文件？（至少列出两种工具或命令）
+> 3. 若找到一条慢查询 `SELECT * FROM products WHERE category = 'electronics' ORDER BY price DESC;`，`category` 列上已有普通索引，但查询依然慢，可能是什么原因？如何进一步用 `EXPLAIN` 和 `PROFILE` 定位瓶颈？
+     > 追问：为何 `log_queries_not_using_indexes` 参数在生产环境需谨慎开启？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 开启慢查询日志（MySQL 5.7+）：
+  SET GLOBAL slow_query_log = ON;
+  SET GLOBAL long_query_time = 1;   -- 记录执行时间超过 1 秒的 SQL
+  SET GLOBAL log_queries_not_using_indexes = ON; -- 记录未使用索引的查询
+  （持久化需写入 `my.cnf`：`slow_query_log=1`、`long_query_time=1`、`slow_query_log_file=/var/log/mysql/slow.log`）
+- 分析工具：
+  1. `mysqldumpslow /var/log/mysql/slow.log`：MySQL 自带工具，可汇总统计（如按时间排序 `-s t`）。
+  2. `pt-query-digest /var/log/mysql/slow.log`：Percona Toolkit 中的高级分析工具，生成详细报告。
+- 慢查询原因分析（`category` 已建索引但仍慢）：
+  1. 索引选择性和回表问题：若 `category='electronics'` 占比过高（如 50%），优化器可能放弃索引（走全表扫描）。`EXPLAIN` 查看 `type` 是否为 `ALL`。
+  2. `ORDER BY price` 导致文件排序：因索引 `category` 不包含 `price`，排序需要 `Using filesort`。可建联合索引 `(category, price DESC)` 覆盖排序。
+  3. 使用 `PROFILE` 查看耗时细节：
+     SET profiling = 1;
+     SELECT * FROM products WHERE category = 'electronics' ORDER BY price DESC;
+     SHOW PROFILE FOR QUERY 1;
+     查看 `Sending data`、`Sorting result` 等阶段耗时。
+- 谨慎开启 `log_queries_not_using_indexes`：会记录大量全表扫描查询（即使扫描行数很少），可能导致日志文件急速膨胀，影响磁盘 I/O，通常仅在调试阶段短期开启。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：联合索引的索引选择性与扫描行数估算（SHOW INDEX 与 cardinality）
+> 现有表 `employees` 有联合索引 `idx_dept_salary` 在 `(department_id, salary)` 上。使用 `SHOW INDEX FROM employees;` 输出：
+> - `department_id` 的 `Cardinality` 为 10（部门总数为 10）。
+> - `salary` 的 `Cardinality` 为 5000（薪资不同值较多）。
+    > 请回答：
+> 1. 执行 `SELECT * FROM employees WHERE department_id = 3 AND salary > 50000;`，优化器大概率会选择该索引吗？为什么？
+> 2. 若执行 `SELECT * FROM employees WHERE salary > 50000;`，该索引是否能被使用？为什么？
+> 3. 若 `department_id` 的 Cardinality 突然变为 1（所有记录 department_id 相同），优化器会怎么做？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 问题1：大概率会使用该索引。
+  - 因 `department_id = 3` 是等值匹配且选择性较好（10 个部门中选 1 个，过滤后约 10% 数据），符合索引最左前缀原则。`salary > 50000` 为范围条件，可继续在索引的 `salary` 列上进行范围扫描（索引在 `department_id` 后连续，可部分利用 `salary`）。
+- 问题2：无法使用该索引。
+  - 查询条件跳过了最左列 `department_id`，直接对 `salary` 进行范围查询，不满足最左前缀原则。优化器大概率选择全表扫描（或扫描其他单列索引）。
+- 问题3：若 Cardinality 降为 1（如所有记录 department_id 相同），优化器会认为该索引选择性极差，可能放弃索引，改为全表扫描（或扫描其他索引）。若需强制使用，可提示 `FORCE INDEX`，但需评估收益。
+- Cardinality 本质：索引中不重复值的估算数量（基于采样），越高代表索引选择性越好，优化器越倾向使用该索引。
+- 注意：`SHOW INDEX` 的 Cardinality 是抽样估算值，若统计信息不准确，可通过 `ANALYZE TABLE employees;` 重新采样更新。
 </details>
 
 **我的初答**：
