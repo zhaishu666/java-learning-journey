@@ -2776,4 +2776,112 @@ id 主键保证唯一，作为第二排序键可以**彻底消除“同值翻页
 
 ---
 
+## Day 51 (2026-09-14) —— JDBC 核心机制（Java 后端面试）
 
+### 题目1：Statement 与 PreparedStatement 的本质区别（SQL 注入、预编译、性能）
+> 在 Java 中通过 JDBC 操作数据库时，Statement 和 PreparedStatement 是最常用的两个接口。请回答：
+> 1. 为什么 PreparedStatement 能防止 SQL 注入？请从 SQL 语句的解析时机（编译期 vs 运行期）解释其原理。Statement 为什么不能防止注入？请举一个典型注入示例。
+> 2. PreparedStatement 的“预编译”在 MySQL 中是真的预编译吗？MySQL 驱动是否默认开启了服务端预编译？如果未开启，那 PreparedStatement 的性能优势体现在哪里？
+> 3. 批量插入 10000 条数据时，如何使用 PreparedStatement 的 addBatch / executeBatch 提升性能？与 Statement 的批量操作相比，优势在哪里？
+     > 追问：MySQL 驱动中 useServerPrepStmts 参数控制什么？为什么默认值是 false？开启后有什么副作用？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- SQL 注入防护原理：
+  - Statement：SQL 语句在拼接完成后才发送给数据库，数据库在执行前才解析。若用户输入包含恶意 SQL（如 `' OR '1'='1`），会被当作 SQL 语法的一部分执行，导致注入。
+  - PreparedStatement：SQL 语句模板（带 ? 占位符）在创建时**预先发送给数据库进行语法解析和编译**（预编译），后续只传入参数值。参数值被视为**纯数据**，不会参与 SQL 语法解析，因此注入字符会被转义或直接作为数据比较，无法改变 SQL 语义。
+  - 示例（Statement 注入）：`SELECT * FROM users WHERE name = '` + userInput + `'`，若 userInput 为 `' OR '1'='1`，则 SQL 变为 `SELECT * FROM users WHERE name = '' OR '1'='1'`，返回全表数据。
+  - 示例（PreparedStatement）：`SELECT * FROM users WHERE name = ?`，传入 `' OR '1'='1`，数据库将其作为字符串值查找 name 等于该字面量的行，注入无效。
+
+- MySQL 预编译真相：
+  - MySQL 服务端确实支持预编译（Prepared Statement 协议），但 JDBC 驱动默认**不开启**服务端预编译（`useServerPrepStmts=false`）。
+  - 默认情况下，PreparedStatement 在客户端进行 SQL 拼接（驱动内部处理参数转义），然后作为普通 SQL 发送。此时性能优势来自**减少 SQL 解析次数**（对于多次执行同一 SQL，驱动可缓存执行计划）和**批量操作减少网络往返**。
+  - 若设置 `useServerPrepStmts=true`，则启用服务端预编译，SQL 模板在 MySQL 端编译一次，后续只传参数。这能减少网络传输（只传参数而非完整 SQL），但增加了一次额外的 prepare 往返，且 MySQL 对预编译语句的缓存管理有限，某些情况下反而更慢。
+
+- 批量插入优化：
+  - 使用 `addBatch()` 将多条参数加入批处理队列，调用 `executeBatch()` 一次性发送所有语句。
+  - 必须关闭自动提交（`conn.setAutoCommit(false)`），并在批量执行后手动提交。
+  - 与 Statement 批量相比：PreparedStatement 在驱动层可重用同一个 SQL 模板，且参数转义在客户端完成，减少数据库解析次数。但真正提升性能的关键是**重写批量插入为单条 INSERT 多 VALUES**（如 `INSERT INTO t (a,b) VALUES (?,?),(?,?)...`），或使用 MySQL 的 `rewriteBatchedStatements=true` 参数（驱动将多条 INSERT 合并为一条）。
+
+- 追问：
+  - `useServerPrepStmts` 控制是否启用服务端预编译。默认 false。
+  - 副作用：开启后，每个 PreparedStatement 在服务端会占用资源（如 prepared statement 缓存），且某些 DDL 或复杂查询可能不支持预编译。此外，若连接池未正确清理，可能导致服务端预编译句柄泄漏。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：JDBC 事务管理与 Spring 声明式事务的底层关系（Connection 传递）
+> 在 Spring 中，使用 @Transactional 注解可以方便地管理事务，但你是否思考过：Spring 是如何保证同一个事务中的多个 DAO 操作使用同一个数据库连接（Connection）的？请回答：
+> 1. Spring 的 DataSourceUtils 和 TransactionSynchronizationManager 在事务管理中扮演什么角色？ThreadLocal 在此的作用是什么？
+> 2. 如果在 @Transactional 方法中手动获取 Connection（如 dataSource.getConnection()），会导致什么后果？为什么？
+> 3. Spring 的 @Transactional 默认对哪些异常回滚？如果需要让受检异常（如 IOException）也触发回滚，应如何配置？
+     > 追问：若在事务方法内调用另一个 @Transactional 方法，且传播行为为 REQUIRES_NEW，底层连接是如何切换的？原事务的连接会被挂起还是释放？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- Spring 事务与 Connection 绑定：
+  - Spring 通过 `TransactionSynchronizationManager` 维护一个 ThreadLocal 变量（`TransactionSynchronizationManager.resources`），将当前事务的 Connection 绑定到当前线程。
+  - 当 DAO 层通过 `DataSourceUtils.getConnection(dataSource)` 获取连接时，会先检查当前线程是否已有绑定连接，若有则直接返回，确保同一事务使用同一 Connection。
+  - 事务提交或回滚后，Spring 会解绑并释放连接（归还连接池）。
+
+- 手动获取 Connection 的后果：
+  - 直接调用 `dataSource.getConnection()` 会绕过 Spring 的事务管理，获取一个**新连接**（可能来自连接池的不同物理连接），导致该操作不在当前事务范围内。
+  - 后果：该操作不会随当前事务回滚，且可能引发数据库锁竞争（不同连接持有不同锁）。
+
+- 异常回滚规则：
+  - 默认仅对 `RuntimeException` 和 `Error` 回滚。
+  - 若需对受检异常回滚，需配置 `@Transactional(rollbackFor = Exception.class)`。
+
+- 追问（REQUIRES_NEW 传播）：
+  - 当内层方法使用 `REQUIRES_NEW` 时，Spring 会**挂起**当前事务（将原 Connection 从 ThreadLocal 中解绑并暂存），然后从连接池获取**新 Connection**，开启新事务。
+  - 内层事务提交/回滚后，恢复外层事务，将原 Connection 重新绑定到 ThreadLocal。
+  - 注意：挂起的是事务状态，Connection 并未释放回池，因此高并发下可能占用两个连接，需警惕连接池耗尽。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：数据库连接池（HikariCP / Druid）的核心参数与 Java 后端调优实践
+> 在 Spring Boot 项目中，默认使用 HikariCP 作为连接池。请回答：
+> 1. HikariCP 的核心参数有哪些（maximumPoolSize、minimumIdle、connectionTimeout、idleTimeout、maxLifetime、leakDetectionThreshold）？分别说明其作用。
+> 2. 如何合理设置 maximumPoolSize？是否越大越好？请结合数据库最大连接数、应用线程数（Tomcat 线程池）和业务耗时综合说明。
+> 3. 若线上出现 “Connection is not available, request timed out after 30000ms” 错误，应如何排查？请从连接泄漏、慢 SQL、连接池配置三个角度分析。
+     > 追问：HikariCP 为什么比 Druid 快？Druid 的监控功能在生产环境中有什么价值？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- HikariCP 核心参数：
+  - maximumPoolSize：最大连接数（默认 10）。
+  - minimumIdle：最小空闲连接数（默认与 maximumPoolSize 相同，即不缩容）。
+  - connectionTimeout：获取连接的超时时间（默认 30 秒），超时抛出 SQLException。
+  - idleTimeout：空闲连接存活时间（默认 10 分钟），仅在 minimumIdle < maximumPoolSize 时生效。
+  - maxLifetime：连接最大生命周期（默认 30 分钟），建议小于数据库 wait_timeout（如 8 小时），防止连接被数据库端断开。
+  - leakDetectionThreshold：连接泄漏检测阈值（默认 0，不开启），设置后若连接超过该时间未归还，打印警告日志。
+
+- maximumPoolSize 设置原则：
+  - 并非越大越好。连接池过大会导致数据库端连接数暴涨，每个连接占用内存和 CPU（上下文切换），反而降低性能。
+  - 推荐公式：`maximumPoolSize = (核心数 * 2) + 有效磁盘数`（PostgreSQL 官方建议），MySQL 通常设为 10~20 即可。
+  - 需结合 Tomcat 最大线程数（默认 200）考虑：若连接池只有 10 个连接，200 个线程中有 190 个在等待连接，可能成为瓶颈。可通过压测找到最佳值。
+
+- 排查 “Connection is not available”：
+  1. 连接泄漏：检查代码中是否有未关闭的 Connection、Statement、ResultSet（使用 try-with-resources 可避免）。开启 leakDetectionThreshold 定位泄漏点。
+  2. 慢 SQL：若某个查询长时间占用连接，连接池被耗尽。通过慢查询日志和 SHOW PROCESSLIST 定位。
+  3. 连接池配置：maximumPoolSize 过小，无法支撑并发量。结合监控（如 HikariCP 的 metrics）调整。
+  4. 数据库端限制：MySQL 的 max_connections 是否被打满。
+
+- 追问：
+  - HikariCP 使用字节码精简（Javassist 生成代理）、无锁化设计（ConcurrentBag）和优化算法，减少开销，因此比 Druid 快。
+  - Druid 的监控功能（SQL 监控、慢查询日志、连接池状态）在生产环境价值极高，便于快速定位问题。若团队需要详细监控，Druid 仍是首选。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+```
