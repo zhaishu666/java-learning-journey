@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 312" font-family="'PingFang SC','Microsoft YaHei',sans-serif">
+    <rect width="680" height="312" fill="#ffffff"/>
+    <text x="24" y="30" font-size="16" font-weight="700" fill="#24292f">三种持久化方式对比（面试总结图）</text>
+    <text x="24" y="52" font-size="12" fill="#57606a">混合持久化：AOF 重写时先写入 RDB 格式的全量数据，再追加增量命令 —— Redis 4.0 引入，5.0 默认开启</text>
+
+    <!-- Row 1: 纯 RDB -->
+    <rect x="24" y="74" width="76" height="40" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="62" y="99" text-anchor="middle" font-size="13" font-weight="700" fill="#24292f">纯 RDB</text>
+    <rect x="116" y="74" width="324" height="40" rx="6" fill="#fff4e5" stroke="#d9730d"/>
+    <text x="278" y="99" text-anchor="middle" font-size="12" fill="#8a4b00">RDB 全量数据（二进制紧凑）</text>
+    <text x="452" y="99" font-size="11.5" fill="#24292f">✓恢复快 ✗两次快照间丢数据多</text>
+
+    <!-- Row 2: 纯 AOF -->
+    <rect x="24" y="146" width="76" height="40" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="62" y="171" text-anchor="middle" font-size="13" font-weight="700" fill="#24292f">纯 AOF</text>
+    <rect x="116" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="139" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="167" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="190" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="218" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="241" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="269" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="292" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="320" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="343" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="371" y="146" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="394" y="171" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <text x="452" y="171" font-size="11.5" fill="#24292f">✓丢数据少 ✗文件大、恢复慢</text>
+
+    <!-- Row 3: 混合 -->
+    <rect x="24" y="218" width="76" height="40" rx="6" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="62" y="243" text-anchor="middle" font-size="13" font-weight="700" fill="#24292f">混合</text>
+    <rect x="116" y="218" width="160" height="40" rx="6" fill="#fff4e5" stroke="#d9730d"/>
+    <text x="196" y="243" text-anchor="middle" font-size="12" fill="#8a4b00">RDB 全量</text>
+    <rect x="282" y="218" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="305" y="243" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="333" y="218" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="356" y="243" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <rect x="384" y="218" width="46" height="40" rx="5" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="407" y="243" text-anchor="middle" font-size="11" fill="#116326">命令</text>
+    <text x="452" y="243" font-size="11.5" font-weight="700" fill="#24292f">✓恢复快 + 丢得少（默认）</text>
+
+    <text x="24" y="292" font-size="12" fill="#57606a">记法：RDB＝定期拍照，AOF＝逐笔记账，混合＝拍一张新照后继续记账（恢复时不用翻旧账）</text>
+</svg>

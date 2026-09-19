@@ -1,0 +1,53 @@
+<svg viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <rect x="0" y="0" width="680" height="400" fill="#ffffff"/>
+    <text x="20" y="28" font-size="14" font-weight="bold" fill="#1f2328">三兄弟的区别只有一个维度：失效的是什么 key</text>
+
+    <!-- 穿透 -->
+    <rect x="20" y="45" width="200" height="150" rx="10" fill="#ffebe9" stroke="#cf222e" stroke-width="1.5"/>
+    <text x="120" y="70" font-size="13.5" font-weight="bold" fill="#cf222e" text-anchor="middle">穿透 Penetration</text>
+    <text x="120" y="90" font-size="11.5" fill="#57606a" text-anchor="middle">查的 key 压根不存在</text>
+    <text x="120" y="106" font-size="11.5" fill="#57606a" text-anchor="middle">缓存永远不可能命中</text>
+    <text x="120" y="122" font-size="11.5" fill="#57606a" text-anchor="middle">（查无此数据 ≠ 失效）</text>
+    <line x1="40" y1="132" x2="200" y2="132" stroke="#f0b4b0"/>
+    <text x="120" y="150" font-size="11" fill="#1f2328" text-anchor="middle">▸ 缓存空对象（配短TTL）</text>
+    <text x="120" y="168" font-size="11" fill="#1f2328" text-anchor="middle">▸ 布隆过滤器（位数组）</text>
+    <text x="120" y="186" font-size="11" fill="#1f2328" text-anchor="middle">▸ 参数校验/限流/风控</text>
+
+    <!-- 击穿 -->
+    <rect x="240" y="45" width="200" height="150" rx="10" fill="#fff8c5" stroke="#d4a72c" stroke-width="1.5"/>
+    <text x="340" y="70" font-size="13.5" font-weight="bold" fill="#9a6700" text-anchor="middle">击穿 Breakdown</text>
+    <text x="340" y="90" font-size="11.5" fill="#57606a" text-anchor="middle">单个热点 key 失效</text>
+    <text x="340" y="106" font-size="11.5" fill="#57606a" text-anchor="middle">高并发重建撞在一起</text>
+    <text x="340" y="122" font-size="11.5" fill="#57606a" text-anchor="middle">（1 个 key × 万级 QPS）</text>
+    <line x1="260" y1="132" x2="420" y2="132" stroke="#e6d19a"/>
+    <text x="340" y="150" font-size="11" fill="#1f2328" text-anchor="middle">▸ 互斥锁（牺牲吞吐保一致）</text>
+    <text x="340" y="168" font-size="11" fill="#1f2328" text-anchor="middle">▸ 逻辑过期（牺牲一致保吞吐）</text>
+    <text x="340" y="186" font-size="11" fill="#1f2328" text-anchor="middle">▸ 热点key永不过期+后台续</text>
+
+    <!-- 雪崩 -->
+    <rect x="460" y="45" width="200" height="150" rx="10" fill="#ddf4ff" stroke="#0969da" stroke-width="1.5"/>
+    <text x="560" y="70" font-size="13.5" font-weight="bold" fill="#0969da" text-anchor="middle">雪崩 Avalanche</text>
+    <text x="560" y="90" font-size="11.5" fill="#57606a" text-anchor="middle">大量 key 同时失效</text>
+    <text x="560" y="106" font-size="11.5" fill="#57606a" text-anchor="middle">或 Redis 整个宕机</text>
+    <text x="560" y="122" font-size="11.5" fill="#57606a" text-anchor="middle">（N 个 key 一起失效）</text>
+    <line x1="480" y1="132" x2="640" y2="132" stroke="#a8c8f0"/>
+    <text x="560" y="150" font-size="11" fill="#1f2328" text-anchor="middle">▸ TTL 加随机值打散</text>
+    <text x="560" y="168" font-size="11" fill="#1f2328" text-anchor="middle">▸ 集群高可用（哨兵/分片）</text>
+    <text x="560" y="186" font-size="11" fill="#1f2328" text-anchor="middle">▸ 多级缓存/限流降级兜底</text>
+
+    <!-- bottom: 击穿两方案的本质取舍 -->
+    <rect x="20" y="215" width="640" height="165" rx="10" fill="#f6f8fa" stroke="#d0d5dd"/>
+    <text x="340" y="240" font-size="13" font-weight="bold" fill="#1f2328" text-anchor="middle">击穿两方案的本质：一致性与可用性的二选一（面试说出来=加分）</text>
+    <rect x="45" y="255" width="285" height="105" rx="8" fill="#ffffff" stroke="#d0d5dd"/>
+    <text x="187" y="277" font-size="12" font-weight="bold" fill="#cf222e" text-anchor="middle">互斥锁 → 保一致性</text>
+    <text x="187" y="297" font-size="11" fill="#57606a" text-anchor="middle">拿不到锁的线程自旋等待</text>
+    <text x="187" y="313" font-size="11" fill="#57606a" text-anchor="middle">吞吐下降，但重建后是 新值</text>
+    <text x="187" y="333" font-size="10.5" fill="#8b949e" text-anchor="middle">适用：数据要求强一致（余额/库存）</text>
+    <text x="187" y="350" font-size="10.5" fill="#8b949e" text-anchor="middle">死锁防线：setnx + TTL</text>
+    <rect x="350" y="255" width="285" height="105" rx="8" fill="#ffffff" stroke="#d0d5dd"/>
+    <text x="492" y="277" font-size="12" font-weight="bold" fill="#0969da" text-anchor="middle">逻辑过期 → 保可用性</text>
+    <text x="492" y="297" font-size="11" fill="#57606a" text-anchor="middle">请求全放行，返回旧值不阻塞</text>
+    <text x="492" y="313" font-size="11" fill="#57606a" text-anchor="middle">拿锁的线程异步重建</text>
+    <text x="492" y="333" font-size="10.5" fill="#8b949e" text-anchor="middle">适用：容忍短暂旧数据（榜单/热搜）</text>
+    <text x="492" y="350" font-size="10.5" fill="#8b949e" text-anchor="middle">本质：把 CAP 里的 C 换成了 A</text>
+</svg>

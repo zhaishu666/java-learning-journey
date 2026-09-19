@@ -9,6 +9,72 @@
 1. 设置底层为红黑树的集合,可以对添加的对象进行排序,我们可以实现Comparable接口或者在创建集合时传递Comparator对象,指定比较规则
 2. 对于只需要添加和删除的情况下,我们可以使用HashMap,对于需要key有序或者范围查询时TreeMap更合适
 
+<details>
+<summary><strong>点击展开补充</strong></summary>
+
+### 1. “TreeSet 底层与 TreeMap 相同” → 不准确
+
+看源码会发现，**TreeSet 内部就是持有一个 TreeMap 实例**（组合/委托关系），元素全部作为 key 存入，value 统一用一个共享的哑对象：
+
+java
+```
+// TreeSet 的源码
+private transient NavigableMap<E,Object> m;
+private static final Object PRESENT = new Object(); // 所有 value 共用这一个
+```
+
+HashSet 之于 HashMap 同理。所以准确说法是“TreeSet 基于 TreeMap 实现”，而不是“结构相同”——这是看源码时的重要发现点。
+
+### 2. “不允许 null key” 对，但原因没说，且漏了 value
+
+- **原因**：TreeMap 靠比较定位插入位置，无法对 null 调用 `compareTo()`，运行时直接 NPE；
+- **value 是允许 null 的**（HashMap 则是 key 和 value 都允许 null，key 最多一个）；
+- **隐蔽的坑**：无参构造的 TreeMap，如果 key 没实现 `Comparable`，**编译期能过，插入时才抛 `ClassCastException`**——运行时才炸，是典型的泛型擦除后遗症。构造时传了 `Comparator` 就不要求 key 实现 Comparable（且 **Comparator 优先级更高**，`compare()` 里先判断它）。
+
+## 二、“怎么用”——补上缺失的核心 API
+
+你说“需要范围查询时 TreeMap 更合适”，但没写怎么做。导航方法是 TreeMap 存在的核心理由，必背：
+
+| 方法  | 含义  |
+| --- | --- |
+| `floorKey(k)` | **≤** k 的最大 key |
+| `ceilingKey(k)` | **≥** k 的最小 key |
+| `lowerKey(k)` / `higherKey(k)` | 严格 < / 严格 > 的最近 key |
+| `firstKey()` / `lastKey()` | 最小 / 最大 |
+| `pollFirstEntry()` / `pollLastEntry()` | 取出并删除（做优先队列的效果） |
+| `subMap(from, toInclusive, ...)` / `headMap(k)` / `tailMap(k)` | **范围视图**（是原 map 的视图，修改互相影响） |
+
+真实场景示例——**Dubbo 一致性哈希负载均衡就是用 TreeMap 做的哈希环**（简化版）：
+
+java
+
+```
+TreeMap<Long, Server> hashRing = new TreeMap<>();
+Long hit = hashRing.ceilingKey(requestHash); // 找 >= hash 的第一个节点
+if (hit == null) hit = hashRing.firstKey();  // 环形回绕
+return hashRing.get(hit);
+```
+
+其他典型场景：排行榜（按分数范围取段）、按时间范围取日志/时间线。
+
+## 三、实现层面值得补的
+
+1. **Entry 结构**（你提到了但没展开）：`key、value、left、right、parent、color` 六个字段——比 HashMap 的 Node 多了 parent 和 color；
+
+2. **为什么用红黑树而不是别的树**（高频追问，正好接上你学 MySQL 时比较树结构的思路）：
+
+
+| 候选  | 不选/选的原因 |
+| --- | --- |
+| 普通 BST | 可能退化成链表 O(n) |
+| AVL 树 | 严格平衡，**查询略快**（树更矮），但插入/删除要更多旋转维护 |
+| 红黑树 | 近似平衡，插入最多 2 次旋转、删除最多 3 次，**读写综合成本最优**，通用场景工程首选（Linux 的 CFS/epoll、C++ 的 std::map 同款选择） |
+
+3. **“Key 有序”的本质**：迭代器做的是**中序遍历**（左-根-右），BST 的中序遍历天然有序——这句话能把“有序”从现象讲成原理；
+
+4. **一个常见误区**：JDK 8 的 HashMap 链表转红黑树，**用的不是 TreeMap 的代码**，而是 HashMap 内部自己实现的 `TreeNode`。两者只是同一套红黑树思想，代码不共用。
+</details>
+
 ## Day 02 (2026-7-23)
 ### 今天学习了Collections工具类
 > Collections能干什么?怎么使用?
