@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 500" font-family="'PingFang SC','Microsoft YaHei',sans-serif">
+    <defs>
+        <marker id="za" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+        </marker>
+    </defs>
+    <rect width="680" height="500" fill="#ffffff"/>
+    <text x="24" y="30" font-size="15" font-weight="700" fill="#24292f">ziplist：一块连续内存的布局</text>
+
+    <!-- ziplist layout bar -->
+    <rect x="24" y="52" width="72" height="44" rx="4" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="60" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#24292f">zlbytes</text>
+    <text x="60" y="88" text-anchor="middle" font-size="9.5" fill="#57606a">总字节数</text>
+    <rect x="96" y="52" width="72" height="44" rx="4" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="132" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#24292f">zltail</text>
+    <text x="132" y="88" text-anchor="middle" font-size="9.5" fill="#57606a">尾偏移</text>
+    <rect x="168" y="52" width="60" height="44" rx="4" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="198" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#24292f">zllen</text>
+    <text x="198" y="88" text-anchor="middle" font-size="9.5" fill="#57606a">entry数</text>
+    <rect x="228" y="52" width="110" height="44" rx="4" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="283" y="78" text-anchor="middle" font-size="11" fill="#1f4fd8">entry 1</text>
+    <rect x="338" y="52" width="110" height="44" rx="4" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="393" y="78" text-anchor="middle" font-size="11" fill="#1f4fd8">entry 2</text>
+    <rect x="448" y="52" width="110" height="44" rx="4" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="503" y="78" text-anchor="middle" font-size="11" fill="#1f4fd8">entry 3</text>
+    <rect x="558" y="52" width="98" height="44" rx="4" fill="#fdeaea" stroke="#c0392b"/>
+    <text x="607" y="72" text-anchor="middle" font-size="10" font-weight="700" fill="#a12622">0xFF</text>
+    <text x="607" y="88" text-anchor="middle" font-size="9.5" fill="#a12622">结束标记</text>
+
+    <!-- entry zoom -->
+    <text x="24" y="130" font-size="13" font-weight="700" fill="#24292f">entry 内部（放大）</text>
+    <rect x="24" y="142" width="150" height="46" rx="6" fill="#fff8e5" stroke="#d9730d"/>
+    <text x="99" y="162" text-anchor="middle" font-size="11" font-weight="700" fill="#8a4b00">prevlen</text>
+    <text x="99" y="178" text-anchor="middle" font-size="9.5" fill="#8a4b00">上一 entry 的长度（1B 或 5B）</text>
+    <rect x="174" y="142" width="150" height="46" rx="6" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="249" y="162" text-anchor="middle" font-size="11" font-weight="700" fill="#116326">encoding</text>
+    <text x="249" y="178" text-anchor="middle" font-size="9.5" fill="#116326">类型 + 长度（小整数可编进来）</text>
+    <rect x="324" y="142" width="150" height="46" rx="6" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="399" y="162" text-anchor="middle" font-size="11" font-weight="700" fill="#1f4fd8">data</text>
+    <text x="399" y="178" text-anchor="middle" font-size="9.5" fill="#1f4fd8">值本身</text>
+    <text x="490" y="160" font-size="10.5" fill="#57606a">← 反向遍历：当前位置 − prevlen</text>
+    <text x="490" y="176" font-size="10.5" fill="#57606a">  = 上一个 entry 的位置（非地址）</text>
+
+    <!-- cascade update -->
+    <text x="24" y="228" font-size="13" font-weight="700" fill="#24292f">连锁更新（cascade update）：ziplist 的头号考点</text>
+    <rect x="24" y="242" width="632" height="180" rx="10" fill="#fdeaea" stroke="#c0392b"/>
+    <text x="44" y="268" font-size="11.5" font-weight="700" fill="#a12622">前提：prevlen 是变长字段 —— 上一个 entry 小于 254B 时占 1 字节，≥254B 时占 5 字节</text>
+
+    <rect x="44" y="284" width="90" height="34" rx="5" fill="#ffffff" stroke="#8b949e"/>
+    <text x="89" y="305" text-anchor="middle" font-size="10" fill="#24292f">entryA 250B</text>
+    <line x1="134" y1="301" x2="170" y2="301" stroke="#57606a" stroke-width="1.4" marker-end="url(#za)"/>
+    <rect x="172" y="284" width="110" height="34" rx="5" fill="#ffffff" stroke="#8b949e"/>
+    <text x="227" y="305" text-anchor="middle" font-size="10" fill="#24292f">entryB prevlen=1B</text>
+    <line x1="282" y1="301" x2="318" y2="301" stroke="#57606a" stroke-width="1.4" marker-end="url(#za)"/>
+    <rect x="320" y="284" width="110" height="34" rx="5" fill="#ffffff" stroke="#8b949e"/>
+    <text x="375" y="305" text-anchor="middle" font-size="10" fill="#24292f">entryC prevlen=1B</text>
+
+    <text x="44" y="346" font-size="11" fill="#24292f">① 在 A 前插入一个 260B 的大 entry：</text>
+    <rect x="44" y="356" width="90" height="32" rx="5" fill="#fdeaea" stroke="#c0392b"/>
+    <text x="89" y="376" text-anchor="middle" font-size="10" font-weight="700" fill="#a12622">插入 260B</text>
+    <line x1="134" y1="372" x2="170" y2="372" stroke="#57606a" stroke-width="1.4" marker-end="url(#za)"/>
+    <rect x="172" y="356" width="110" height="32" rx="5" fill="#fdeaea" stroke="#c0392b"/>
+    <text x="227" y="376" text-anchor="middle" font-size="10" font-weight="700" fill="#a12622">B: prevlen 1B→5B</text>
+    <line x1="282" y1="372" x2="318" y2="372" stroke="#57606a" stroke-width="1.4" marker-end="url(#za)"/>
+    <rect x="320" y="356" width="110" height="32" rx="5" fill="#fdeaea" stroke="#c0392b"/>
+    <text x="375" y="376" text-anchor="middle" font-size="10" font-weight="700" fill="#a12622">C: prevlen 也得扩…</text>
+    <text x="444" y="366" font-size="10.5" fill="#24292f">② B 自己变大了 4B，B 的下一个 entry</text>
+    <text x="444" y="382" font-size="10.5" fill="#24292f">    记录的 prevlen 也可能要扩——级联</text>
+
+    <text x="44" y="412" font-size="11" font-weight="700" fill="#a12622">最坏情况：整条 ziplist 的 entry 逐个扩容，O(n²) —— 这就是 Redis 7.0 用 listpack 替代它的原因：entry 只记自己的事，去掉 prevlen，彻底斩断连锁</text>
+
+    <text x="24" y="452" font-size="12" font-weight="700" fill="#24292f">你问"其他地方有这种思想吗"——有，就在你学过的 InnoDB 里：</text>
+    <text x="24" y="472" font-size="11.5" fill="#57606a">Compact 行格式的「变长字段 = 长度前缀 + 值」、protobuf 的 varint 变长编码，和 ziplist entry 的 prevlen/encoding+data 是同一套哲学：用「解析成本」换「存储密度」，连续内存顺带吃满 CPU 缓存。</text>
+</svg>

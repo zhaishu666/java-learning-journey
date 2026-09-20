@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 470" font-family="'PingFang SC','Microsoft YaHei',sans-serif">
+    <defs>
+        <marker id="qa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+        </marker>
+    </defs>
+    <rect width="680" height="470" fill="#ffffff"/>
+    <text x="24" y="32" font-size="15" font-weight="700" fill="#24292f">Redis List 底层：quicklist</text>
+    <text x="24" y="54" font-size="12" fill="#57606a">节点内 ziplist（连续内存）＋ 节点间双向链表 —— 兼得两者优点</text>
+
+    <rect x="24" y="72" width="170" height="58" rx="8" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="109" y="92" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1f4fd8">node 1（ziplist）</text>
+    <rect x="36" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="51" y="115" text-anchor="middle" font-size="10" fill="#24292f">3</text>
+    <rect x="70" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="85" y="115" text-anchor="middle" font-size="10" fill="#24292f">7</text>
+    <rect x="104" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="119" y="115" text-anchor="middle" font-size="10" fill="#24292f">1</text>
+    <rect x="138" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="153" y="115" text-anchor="middle" font-size="10" fill="#24292f">9</text>
+
+    <line x1="196" y1="101" x2="252" y2="101" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+    <line x1="252" y1="111" x2="196" y2="111" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+
+    <rect x="254" y="72" width="170" height="58" rx="8" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="339" y="92" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1f4fd8">node 2（ziplist）</text>
+    <rect x="266" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="281" y="115" text-anchor="middle" font-size="10" fill="#24292f">5</text>
+    <rect x="300" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="315" y="115" text-anchor="middle" font-size="10" fill="#24292f">2</text>
+    <rect x="334" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="349" y="115" text-anchor="middle" font-size="10" fill="#24292f">8</text>
+    <rect x="368" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="383" y="115" text-anchor="middle" font-size="10" fill="#24292f">4</text>
+
+    <line x1="426" y1="101" x2="482" y2="101" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+    <line x1="482" y1="111" x2="426" y2="111" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+
+    <rect x="484" y="72" width="170" height="58" rx="8" fill="#eef4ff" stroke="#3370ff"/>
+    <text x="569" y="92" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1f4fd8">node 3（ziplist）</text>
+    <rect x="496" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="511" y="115" text-anchor="middle" font-size="10" fill="#24292f">6</text>
+    <rect x="530" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="545" y="115" text-anchor="middle" font-size="10" fill="#24292f">0</text>
+    <rect x="564" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="579" y="115" text-anchor="middle" font-size="10" fill="#24292f">5</text>
+    <rect x="598" y="100" width="30" height="22" rx="3" fill="#ffffff" stroke="#8b949e"/>
+    <text x="613" y="115" text-anchor="middle" font-size="10" fill="#24292f">2</text>
+
+    <text x="24" y="158" font-size="11" fill="#57606a">节点内 = ziplist：连续内存、CPU 缓存友好，中间增删只 memmove 一小段（不是整个 List）</text>
+    <text x="24" y="176" font-size="11" fill="#57606a">节点间 = 双向指针：头尾 O(1)；单个 ziplist 不会太长（quicklist 内部会控制）</text>
+    <text x="24" y="194" font-size="11" font-weight="700" fill="#8a4b00">Redis 7.0 起 ziplist → listpack：取消 prevlen 字段，消除"连锁更新"（原理篇 P145+ 再深挖）</text>
+
+    <text x="24" y="242" font-size="15" font-weight="700" fill="#24292f">延迟队列标准答案：ZSet（不是 List）</text>
+
+    <rect x="24" y="262" width="160" height="52" rx="8" fill="#eaf7ee" stroke="#2ea44f"/>
+    <text x="104" y="284" text-anchor="middle" font-size="11.5" font-weight="700" fill="#116326">生产者</text>
+    <text x="104" y="302" text-anchor="middle" font-size="10" fill="#116326">ZADD delay:q 执行时间 任务</text>
+
+    <line x1="186" y1="288" x2="216" y2="288" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+
+    <rect x="218" y="258" width="240" height="118" rx="8" fill="#f6f8fa" stroke="#8b949e"/>
+    <text x="338" y="278" text-anchor="middle" font-size="11.5" font-weight="700" fill="#24292f">ZSet：delay:q（按 score 有序）</text>
+    <text x="234" y="298" font-size="10.5" fill="#57606a">member</text>
+    <text x="400" y="298" text-anchor="end" font-size="10.5" fill="#57606a">score（执行时间戳）</text>
+    <line x1="234" y1="304" x2="442" y2="304" stroke="#d0d7de" stroke-width="1"/>
+    <text x="234" y="322" font-size="10.5" fill="#24292f">order:1001</text>
+    <text x="400" y="322" text-anchor="end" font-size="10.5" fill="#24292f">22:00</text>
+    <text x="234" y="342" font-size="10.5" fill="#24292f">notify:88</text>
+    <text x="400" y="342" text-anchor="end" font-size="10.5" fill="#24292f">22:02</text>
+    <text x="234" y="362" font-size="10.5" fill="#24292f">order:1002</text>
+    <text x="400" y="362" text-anchor="end" font-size="10.5" fill="#24292f">22:05</text>
+
+    <line x1="460" y1="288" x2="490" y2="288" stroke="#57606a" stroke-width="1.6" marker-end="url(#qa)"/>
+
+    <rect x="492" y="262" width="164" height="52" rx="8" fill="#fff8e5" stroke="#d9730d"/>
+    <text x="574" y="284" text-anchor="middle" font-size="11.5" font-weight="700" fill="#8a4b00">消费者（每秒轮询）</text>
+    <text x="574" y="302" text-anchor="middle" font-size="10" fill="#8a4b00">ZRANGEBYSCORE 0 now</text>
+
+    <text x="24" y="402" font-size="11" fill="#57606a">拿到到期任务 → 执行 → 成功后 ZREM delay:q 任务（防止重复消费；要更稳就配 Lua 脚本保证"取+删"原子性）</text>
+
+    <text x="24" y="428" font-size="11" font-weight="700" fill="#a12622">你的方案的两个洞：① List 无序，RPOP 弹的是"最早入队"，不是"最早到期"</text>
+    <text x="24" y="446" font-size="11" font-weight="700" fill="#a12622">② "到达时间后"谁来判定？必须有轮询方按时间查——这正是 ZSet 的 score 在做的事</text>
+</svg>
