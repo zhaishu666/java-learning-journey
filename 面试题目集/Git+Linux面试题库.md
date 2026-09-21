@@ -104,3 +104,135 @@
 **错漏点**：
 
 ---
+
+## Day 2 (2026-09-21) —— Linux 权限
+
+> 题目 1：Linux 中文件与目录的 r、w、x 权限语义不同。请分别说明文件 rwx 和目录 rwx 的含义。结合 Java 后端部署场景：若 /opt/myapp/static 目录权限为 644，文件 index.html 权限为 777，Nginx 以 www-data 用户运行，能否读取该文件？为什么？删除该目录下的文件需要什么权限？如果目录设置了 sticky 位，删除规则如何变化？
+
+<details>
+<summary>标准解析</summary>
+
+文件：
+- r：读取文件内容。
+- w：修改文件内容。
+- x：执行文件，或对脚本/二进制由内核加载执行。
+
+目录：
+- r：列出目录项，即 ls 能读到文件名列表。
+- w：在目录内创建、删除、重命名目录项。
+- x：进入目录、查找目录项、访问目录内文件的 inode。路径解析每一级目录都需要 x。
+
+场景：
+/opt/myapp/static 为 644，即 rw-r--r--，没有 x。Nginx 即使知道 index.html 文件名，也无法完成路径解析到该 inode，因此不能打开文件。文件 index.html 为 777 也不解决问题，因为父目录缺少 x。若目录为 000 而文件 777，同样无法访问。
+
+删除文件：
+删除、重命名文件看父目录的 w 和 x，与文件自身权限无关。父目录需 w+x。若父目录设置 sticky 位，如 /tmp，只有文件所有者、目录所有者或 root 可以删除/重命名该文件。
+
+追问：
+- 目录只有 r 没有 x 时，ls 可能看到文件名，但 ls -l 无法获取详细属性。
+- Java 进程写日志时，日志目录必须对运行用户有 w+x；日志文件本身有 w 即可，但创建新文件需要目录 w+x。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 2：请解释 umask 的作用，并计算 umask 为 027 时新建普通文件和目录的默认权限。命令 chmod 2775 /var/log/myapp 中 2 是什么权限？对目录有何效果？SUID、SGID、Sticky 分别作用于什么对象？Java 后端服务以 app 用户运行，日志目录需要 app 可写、同组开发可读、其他用户无权限，且新日志文件自动继承该组，如何设置目录权限和 ACL？给出关键命令。
+
+<details>
+<summary>标准解析</summary>
+
+umask 是权限掩码，创建文件/目录时从基础权限中去掉对应位。
+基础权限：
+- 普通文件：666，即 rw-rw-rw-，通常不会默认给 x。
+- 目录：777，即 rwxrwxrwx。
+  计算：
+  umask 027 -> 文件 666 & ~027 = 640，即 rw-r-----；目录 777 & ~027 = 750，即 rwxr-x---。
+  验证：
+  umask
+  touch a.txt
+  mkdir d
+  ls -ld a.txt d
+
+chmod 2775：
+2 是 SGID。作用于目录时，目录内新建的文件和子目录会继承该目录的组，而不是创建者的主组。2775 权限为 rwxrwsr-x。
+SUID：4，作用于可执行文件，执行时有效用户 ID 变为文件所有者。对普通脚本通常无效。
+SGID：2，作用于可执行文件时有效组 ID 变为文件所属组；作用于目录时继承组。
+Sticky：1，作用于目录，限制删除/重命名，只有文件所有者、目录所有者或 root 可操作。
+
+场景设置：
+假设目录 /var/log/myapp，属主 app，属组 dev。
+chown app:dev /var/log/myapp
+chmod 2775 /var/log/myapp
+若需要更细粒度，使用 ACL：
+setfacl -m u:app:rwx /var/log/myapp
+setfacl -m g:dev:r-x /var/log/myapp
+setfacl -m o::- /var/log/myapp
+setfacl -d -m g:dev:r-x /var/log/myapp
+setfacl -d -m u:app:rwx /var/log/myapp
+getfacl /var/log/myapp
+
+追问：
+- umask 只影响新建对象，不影响已有文件。
+- 目录的 x 权限对 Java 服务写日志、创建临时文件至关重要。
+- 不要用 chmod 777 掩盖权限问题，应最小权限。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 3：线上 Java 服务以 app 用户运行，启动时报日志目录 Permission denied。请给出系统性排查思路和关键命令。重点说明：如何检查 app 用户身份和所属组？如何沿路径逐级检查父目录 x 权限？如何检查 ACL、sudo 权限、systemd 服务运行用户、SELinux/AppArmor？如果应用需要绑定 80 端口但不想用 root，有哪些方案？请结合 Java 后端部署说明最小权限原则。
+
+<details>
+<summary>标准解析</summary>
+
+排查顺序：
+1. 确认进程运行用户：
+   ps -ef | grep java
+   systemctl status myapp
+   systemctl cat myapp
+   查看 systemd 单元中的 User=、Group=、WorkingDirectory=、Environment=。
+2. 确认用户身份：
+   id app
+   groups app
+3. 检查目标路径权限和每一级父目录：
+   namei -l /var/log/myapp/app.log
+   ls -ld /var /var/log /var/log/myapp
+   每一级目录都需要对 app 有 x 权限；最终目录需要 w+x 才能创建文件。
+4. 检查 ACL：
+   getfacl /var/log/myapp
+5. 检查 sudo 权限：
+   sudo -l -U app
+6. 检查安全模块：
+   getenforce
+   sestatus
+   aa-status
+   查看 audit.log 或 journalctl 中的 AVC 拒绝。
+7. 检查端口和能力：
+   ss -lntp
+   getcap /path/to/java
+   非 root 绑定 80：
+  - 使用 Nginx 反向代理到 8080。
+  - 授予能力：
+    setcap cap_net_bind_service=+ep /path/to/java
+    注意这会让该 Java 二进制具备绑定低端口能力，需评估风险。
+  - 使用 systemd 的 AmbientCapabilities=CAP_NET_BIND_SERVICE。
+8. 最小权限原则：
+  - 专用 app 用户运行服务。
+  - 日志、上传、临时目录只授予必要权限。
+  - 使用 ACL 做细粒度授权。
+  - 避免 chmod 777、避免直接 root 运行 Java 服务。
+  - systemd 可配合 ProtectSystem、PrivateTmp、NoNewPrivileges 等加固。
+
+追问：
+- Permission denied 不一定只是文件权限，可能是父目录无 x、ACL 拒绝、SELinux、AppArmor、systemd 沙箱、能力不足。
+- 如果目录权限正确但仍失败，优先看 journalctl -u myapp -e 和 audit 日志。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
