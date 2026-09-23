@@ -33,8 +33,30 @@
 </details>
 
 **我的初答**：
-**错漏点**：
+1. vim的常见模式为命令模式(该模式下所有输入都会以命令形式执行),通过'vim 指定文件'进入,编辑模式(该模式下可以对文件进行编辑),通过命令模式下按i进入,按esc退出到命令模式.
+末行命令模式,用于保存或退出修改的内容,命令模式下输入:进入.输入:w保存,:q退出,:q!强制退出,:wq保存并退出
+2. 查找: /进入查找模式,n向下查找,N向上查找,替换: 不知道.跳转: gg跳转到行首,G跳转到行尾.删除: dd删除整行,dw删除单词.yy复制一行,d粘贴
+3. :q!退出.
 
+**错漏点**：
+<details>
+<summary><strong>点击展开错漏点</strong></summary>
+
+- **模式部分**：答得完整，术语准确（命令模式/编辑模式/末行模式，切换键都对）。
+
+- **查找**：`/ + n/N` 正确，漏了反向查找 `?`。
+
+- **替换**：空白——这是必答点，至少记住 `:%s/old/new/g`。
+
+- **跳转**：`gg`/`G` 正确，注意表述应为"文件首行/文件尾"，不是"行首/行尾"（行首行尾是 `0` 和 `$`）。
+
+- **复制粘贴**：`yy` 正确，但**粘贴是 `p`，不是 `d`**——这个错误在面试里很扎眼。
+
+- **不保存退出**：`:q!` 正确。
+
+- **不重启 vim 重新加载文件**：没答，答案是 `:e!`
+
+</details>
 
 ### 题目2：Linux 用户与用户组管理，以及为何不建议用 root 运行 Java 应用
 > 在部署 Spring Boot 应用时，通常需要创建专用用户来运行服务。请回答：
@@ -230,6 +252,304 @@ getfacl /var/log/myapp
 追问：
 - Permission denied 不一定只是文件权限，可能是父目录无 x、ACL 拒绝、SELinux、AppArmor、systemd 沙箱、能力不足。
 - 如果目录权限正确但仍失败，优先看 journalctl -u myapp -e 和 audit 日志。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+## Day 3 (2026-09-22) —— Linux systemctl、软连接、日期与时区
+
+> 题目 1：systemd 管理 Java 服务。请说明 Type=simple、forking、notify 的区别，Restart=always 与 RestartSec、StartLimitIntervalSec 如何配合。给出一个 Spring Boot 应用的 systemd unit 示例，要求：以 app 用户运行、工作目录 /opt/myapp、JVM 参数 -Xms512m -Xmx512m、日志输出到 journal、开机自启、异常自动重启。说明 systemctl daemon-reload、enable、start、status、journalctl -u myapp -f 的作用。追问：Java 进程被 OOM killer 杀死后 systemd 会重启吗？KillMode=control-group 对 Java 进程树有什么影响？
+
+<details>
+<summary>标准解析</summary>
+
+Type：
+- simple：默认，ExecStart 启动的进程即主进程，systemd 认为启动完成即服务就绪。适合前台运行的 Java 进程。
+- forking：ExecStart 进程 fork 后父进程退出，子进程成为主进程。适合传统守护进程。Java 通常不用。
+- notify：服务通过 sd_notify 发送 READY=1 通知 systemd 就绪。Spring Boot 可集成，但非默认。
+- oneshot：执行一次即退出。
+
+Restart=always：无论正常退出还是异常退出都重启。on-failure 仅异常退出重启。RestartSec=5 重启前等待。StartLimitIntervalSec=60、StartLimitBurst=5 限制 60 秒内最多启动 5 次，超过则进入 failed 不再重启。
+
+unit 示例：
+[Unit]
+Description=My Java App
+After=network.target
+
+    [Service]
+    User=app
+    Group=app
+    WorkingDirectory=/opt/myapp
+    ExecStart=/usr/bin/java -Xms512m -Xmx512m -jar /opt/myapp/app.jar
+    SuccessExitStatus=143
+    Restart=always
+    RestartSec=5
+    StartLimitIntervalSec=60
+    StartLimitBurst=5
+    StandardOutput=journal
+    StandardError=journal
+    Environment=JAVA_HOME=/usr/lib/jvm/java-17
+    Environment=TZ=Asia/Shanghai
+
+    [Install]
+    WantedBy=multi-user.target
+
+命令：
+systemctl daemon-reload  重新加载 unit 文件
+systemctl enable myapp   开机自启
+systemctl start myapp    启动
+systemctl status myapp   查看状态
+journalctl -u myapp -f   查看日志
+
+OOM killer：Java 进程被内核杀死，退出信号 SIGKILL，systemd 视为失败，Restart=always 会重启。但若频繁 OOM，可能触发 StartLimitBurst 限制。需排查内存限制、cgroup、JVM 堆外内存。
+
+KillMode=control-group：systemd 停止服务时杀死整个 cgroup 内所有进程，包括 Java 派生的子进程。默认即 control-group。若设为 process，只杀主进程，可能留下子进程。Java 进程树需注意。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 2：软链接与硬链接。请解释硬链接和软链接在 inode、目录项、链接计数、跨文件系统、目录支持、删除源文件后的行为差异。Java 后端蓝绿发布常用 /opt/myapp/current -> /opt/myapp/releases/v1 的软链接切换。如何原子切换？如果 Java 进程已经打开了旧版本的 jar，切换软链接后旧进程是否受影响？为什么？给出关键命令。追问：软链接使用相对路径还是绝对路径？systemd 的 WorkingDirectory 与软链接结合时有哪些陷阱？
+
+<details>
+<summary>标准解析</summary>
+
+硬链接：多个目录项指向同一 inode，链接计数增加。删除一个目录项只减少计数，inode 数据仍在直到计数为 0。不能跨文件系统，不能对目录创建硬链接，避免循环。
+软链接：独立文件，inode 不同，内容是指向目标路径的字符串。可跨文件系统，可指向目录，目标删除后成为悬空链接。权限通常 777，但访问目标受目标权限限制。
+
+蓝绿切换：
+ln -sfn /opt/myapp/releases/v2 /opt/myapp/current
+-f 强制，-n 把软链接当普通文件而非目录。更原子方式：创建临时链接再 mv：
+ln -sfn /opt/myapp/releases/v2 /opt/myapp/current.tmp
+mv -T /opt/myapp/current.tmp /opt/myapp/current
+mv 在同一文件系统内是原子重命名。
+
+Java 进程已打开旧 jar：进程启动时已打开文件描述符指向旧 inode，切换软链接不影响已打开的文件描述符，旧进程继续读旧版本。新进程通过 current 解析到新版本。可实现不停机切换。
+
+命令：
+ln target link
+ln -s target link
+ls -li
+readlink -f /opt/myapp/current
+stat
+
+相对路径陷阱：软链接中的相对路径是相对于软链接所在目录，不是当前工作目录。systemd WorkingDirectory 设为 /opt/myapp，ExecStart 使用 current/app.jar，解析正常。若使用相对路径软链接，移动链接后可能失效。建议绝对路径。
+
+追问：systemd 启动时解析 ExecStart 路径，若使用软链接，可能记录的是解析后的路径。WorkingDirectory 若为软链接，进程 cwd 可能显示为物理路径。Java 的 user.dir 可能受影响。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 3：日期、时区与 Java 应用。请说明 Linux 中 date、timedatectl、TZ 环境变量、/etc/localtime、/etc/timezone 的作用。Java 应用获取默认时区受哪些因素影响？优先级如何？容器中 Java 日志时间比北京时间少 8 小时，如何系统性排查和修复？MySQL 的 serverTimezone、JDBC URL 参数、数据库时区如何影响时间数据？给出关键命令。追问：NTP 同步、夏令时、分布式系统时间一致性对 Java 后端有哪些影响？
+
+<details>
+<summary>标准解析</summary>
+
+Linux：
+- date 显示或设置系统时间。
+- timedatectl 查看和设置时区、NTP 同步状态。
+- TZ 环境变量：进程级时区，如 TZ=Asia/Shanghai。
+- /etc/localtime：系统时区文件，通常指向 /usr/share/zoneinfo/Asia/Shanghai。
+- /etc/timezone：Debian/Ubuntu 记录时区名称，部分程序读取。
+
+Java 默认时区：
+- 若启动参数指定 -Duser.timezone=Asia/Shanghai，优先。
+- 否则看 TZ 环境变量。
+- 否则看 /etc/localtime。
+- 否则可能回退到 UTC 或系统默认。
+  JDK 内部 TimeZone.getDefault() 会缓存，修改系统时区后已运行 JVM 可能不更新。
+
+容器时区问题：
+- 容器默认 UTC，/etc/localtime 为 UTC。
+- 修复：挂载 -v /etc/localtime:/etc/localtime:ro -v /etc/timezone:/etc/timezone:ro；或设置 TZ=Asia/Shanghai；或 JVM 参数 -Duser.timezone=Asia/Shanghai；或在 Dockerfile 中安装 tzdata 并设置。
+- 排查：
+  date
+  timedatectl
+  echo $TZ
+  ls -l /etc/localtime
+  cat /etc/timezone
+  java -XshowSettings:properties -version 2>&1 | grep user.timezone
+  jcmd <pid> VM.system_properties | grep user.timezone
+  jinfo -sysprops <pid> | grep user.timezone
+
+MySQL：
+- 数据库有 time_zone 系统变量，影响 NOW()、TIMESTAMP 存储转换。
+- JDBC URL 可加 serverTimezone=Asia/Shanghai 或 connectionTimeZone=Asia/Shanghai，旧驱动用 serverTimezone。
+- TIMESTAMP 会随时区转换，DATETIME 不转换。建议统一 UTC 存储，展示层转换。
+- 排查：
+  mysql> SELECT @@global.time_zone, @@session.time_zone, NOW(), UTC_TIMESTAMP();
+  SHOW VARIABLES LIKE '%time_zone%';
+
+NTP：
+- chronyd 或 systemd-timesync 同步时间，避免时钟漂移。
+- 分布式系统：时间戳、雪花算法、TCC、消息顺序、日志排查依赖时间一致性。
+- 夏令时：部分地区时区偏移变化，Java ZonedDateTime 可处理，但存储用 UTC 更安全。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+## Day 4 (2026-09-23) —— Linux 固定 IP、端口、进程
+
+> 题目 1：Linux 固定 IP。请说明 ip addr、ip route、ip link 的作用，以及临时配置与持久化配置的区别。主流发行版持久化方式有哪些（netplan、NetworkManager、/etc/network/interfaces、/etc/sysconfig/network-scripts）？CIDR、网关、DNS 分别配置在哪里？Java 后端高可用常用 Keepalived 虚拟 IP（VIP），请说明 VIP 漂移原理，以及主备切换时 Java 服务需要注意什么。追问：ip addr add 加的 IP 重启后为什么丢失？多网卡场景下 Java 服务如何只监听内网 IP？
+
+<details>
+<summary>标准解析</summary>
+
+核心命令：
+- ip addr：查看/配置网卡 IP 地址。ip addr add 192.168.1.10/24 dev eth0。
+- ip route：查看/配置路由表。ip route add default via 192.168.1.1。
+- ip link：查看/配置链路层。ip link set eth0 up。
+
+临时 vs 持久化：
+- ip addr add 是运行时配置，重启网络或重启系统后丢失。
+- 持久化需写入配置文件：
+    - Ubuntu 18.04+：netplan，/etc/netplan/*.yaml，应用 netplan apply。
+    - CentOS 7+/RHEL：NetworkManager，nmcli 或 /etc/sysconfig/network-scripts/ifcfg-eth0。
+    - Debian 旧版：/etc/network/interfaces。
+    - DNS 可写 /etc/resolv.conf，但常被 NetworkManager 覆盖，应写网卡配置或 systemd-resolved。
+
+CIDR：
+192.168.1.10/24
+网关：
+ip route add default via 192.168.1.1
+或配置文件中 GATEWAY=
+DNS：
+/etc/resolv.conf
+nameserver 8.8.8.8
+
+VIP 与 Keepalived：
+- 主备两台机器，VIP 初始在主节点。Keepalived 通过 VRRP 协议心跳检测。
+- 主节点故障，备节点接管 VIP，通过 arp 通告让交换机更新 MAC 映射。
+- Java 服务本身不感知 VIP，客户端连接 VIP，由 Keepalived 转发/漂移。
+- 注意：服务启动时若绑定 VIP 而非 0.0.0.0，备节点未持有 VIP 时绑定会失败。建议绑 0.0.0.0 或监听时动态判断。
+
+追问：
+- 临时 IP 丢失因为未写入配置文件，内核网络栈状态不持久。
+- 只监听内网 IP：Java 中 ServerSocket 绑定指定地址，Spring Boot 可设 server.address=192.168.1.10。或 iptables 限制来源。
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 2：端口与连接排查。请说明 ss、netstat、lsof 的差异及常用参数。Java 服务启动报 Address already in use，如何系统性定位？请解释 TIME_WAIT、CLOSE_WAIT、LISTEN、ESTABLISHED 状态含义。为什么服务重启后端口仍被占用，明明进程已退出？SO_REUSEADDR 和 SO_REUSEPORT 分别解决什么问题？Java 中如何设置？追问：如何查看本机端口范围和 TIME_WAIT 相关内核参数？firewalld 和 iptables 放行端口分别怎么做？
+
+<details>
+<summary>标准解析</summary>
+
+工具差异：
+- ss：socket statistics，替代 netstat，性能更好，内核直接读取。
+- netstat：老工具，net-tools 包，逐渐淘汰。
+- lsof：list open files，-i 可查网络连接，能定位到进程和文件描述符。
+
+常用：
+ss -lntp        监听中的 TCP 端口及进程
+ss -antp        所有 TCP 连接
+ss -s           汇总统计
+lsof -i:8080    占用 8080 的进程
+netstat -anp | grep 8080
+
+端口占用排查：
+ss -lntp | grep 8080
+lsof -i:8080
+fuser 8080/tcp
+ps -ef | grep <pid>
+确认是否残留进程、是否被其他服务占用、是否 TIME_WAIT 未释放。
+
+状态含义：
+- LISTEN：监听等待连接。
+- ESTABLISHED：连接已建立，可数据传输。
+- TIME_WAIT：主动关闭方进入，等待 2MSL，确保对方收到最后的 ACK，让旧报文消散。
+- CLOSE_WAIT：被动关闭方收到 FIN 但本地未调用 close，通常代码未正确关闭连接，是泄漏信号。
+- SYN_SENT、SYN_RECV：握手中间态。
+
+重启后端口占用：
+- TIME_WAIT 状态没有进程，但占用四元组，导致 bind 失败（尤其未设 SO_REUSEADDR）。
+- 若有进程则可能未真正退出，检查 ps、systemd 是否自动重启。
+
+SO_REUSEADDR：
+- 允许绑定处于 TIME_WAIT 的地址，或绑定通配地址与特定地址共存。Java ServerSocket.setReuseAddress(true)。
+  SO_REUSEPORT：
+- 允许多个 socket 绑定同一端口，内核负载均衡。Java 原生不直接暴露，Netty 可用 SO_REUSEPORT。
+
+内核参数：
+/proc/sys/net/ipv4/ip_local_port_range
+/proc/sys/net/ipv4/tcp_tw_reuse
+/proc/sys/net/ipv4/tcp_max_tw_buckets
+sysctl -w net.ipv4.tcp_tw_reuse=1
+
+防火墙：
+firewall-cmd --add-port=8080/tcp --permanent
+firewall-cmd --reload
+iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
+
+</details>
+
+**我的初答：**
+
+**错漏点：**
+
+> 题目 3：进程管理。请说明 ps aux 与 ps -ef 的区别，进程状态 R/S/D/Z/T 的含义。僵尸进程和孤儿进程的区别、产生原因、如何排查和清理？kill 的信号有哪些，-15、-9、-1、-3 分别是什么？为什么 kill -9 杀不掉 D 状态进程？Java 进程 CPU 飙高如何排查：从 top 到线程栈的完整链路。追问：nohup 与 & 与 systemd 的关系，后台进程为什么退出终端后可能被杀？
+
+<details>
+<summary>标准解析</summary>
+
+ps 差异：
+- ps aux：BSD 风格，显示 USER、PID、%CPU、%MEM、STAT、COMMAND。
+- ps -ef：System V 风格，显示 UID、PID、PPID、C、STIME、TTY、TIME、CMD。
+- 本质都是读 /proc。
+
+进程状态：
+- R：运行或可运行。
+- S：可中断睡眠，等待事件。
+- D：不可中断睡眠，通常等 IO，不能被信号打断。
+- Z：僵尸，已退出但父进程未回收。
+- T：停止，被 SIGSTOP 或调试暂停。
+
+僵尸进程：
+- 子进程退出，父进程未调用 wait/waitpid 回收，残留 task_struct。
+- 不占 CPU/内存，但占 PID。大量僵尸会耗尽 PID。
+- 排查：ps -ef | grep defunct，看 PPID 找父进程。
+- 清理：无法直接 kill 僵尸，需让父进程回收，或 kill 父进程让 init/systemd 接管回收。
+
+孤儿进程：
+- 父进程先退出，子进程被 init/systemd 收养，正常运行，不会变成僵尸问题。
+
+kill 信号：
+- -15 SIGTERM：默认，优雅终止，可被捕获处理。
+- -9 SIGKILL：强制杀死，不可捕获。
+- -1 SIGHUP：挂起，常用于重载配置。
+- -3 SIGQUIT：退出并 core dump，JVM 收到会打印线程栈。
+
+D 状态：
+- 进程在内核态等待不可中断 IO，信号需等系统调用返回才处理，所以 kill -9 也无效。
+- 常见于磁盘故障、NFS 挂起。需解决底层 IO。
+
+Java CPU 飙高排查：
+top -Hp <pid>            找高 CPU 线程 TID
+printf "%x\n" <tid>      转十六进制
+jstack <pid> | grep -A 30 <hex>   找对应线程栈
+jcmd <pid> Thread.print
+或 arthas thread -n 3
+定位到具体代码、死循环、GC 线程等。
+
+nohup/&/systemd：
+- &：后台运行，但终端关闭发 SIGHUP 可能被杀。
+- nohup：忽略 SIGHUP，配合 & 使用。
+- systemd：更规范，管理生命周期、重启、日志、cgroup。
+- 生产建议用 systemd 而非 nohup。
 
 </details>
 
