@@ -556,3 +556,109 @@ nohup/&/systemd：
 **我的初答：**
 
 **错漏点：**
+
+## Day 5 (2026-09-24) —— Linux 环境变量、上传下载、压缩解压
+
+### 题目1：Linux 环境变量的分类、加载顺序与 Java 后端部署实战
+> 在部署 Spring Boot 应用时，常需要配置 JAVA_HOME、PATH 等环境变量。请回答：
+> 1. Linux 中环境变量按作用范围分为哪几类？如何临时设置、永久设置？export 的作用是什么？
+> 2. /etc/profile、/etc/bashrc、~/.bash_profile、~/.bashrc 这几个文件的加载顺序和适用场景分别是什么？为什么在服务器上修改环境变量后有时需要 source 才能生效？
+> 3. 启动 Java 应用时，如何通过环境变量动态覆盖 application.yml 中的配置（如数据库密码）？与 -D 参数有何区别？
+     > 追问：若多个 Spring Boot 应用需要不同版本的 JDK，如何在不修改全局 JAVA_HOME 的情况下实现？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 环境变量分类：
+    - 临时：export VAR=value，仅当前会话有效，关闭终端失效。
+    - 永久（用户级）：写入 ~/.bash_profile 或 ~/.bashrc，仅对当前用户生效。
+    - 永久（系统级）：写入 /etc/profile 或 /etc/profile.d/，对所有用户生效。
+- export 作用：将 shell 变量导出为环境变量，使子进程（如 Java 进程）能够继承。
+- 加载顺序（登录式 shell）：
+    1. /etc/profile
+    2. /etc/profile.d/*.sh
+    3. ~/.bash_profile
+    4. ~/.bashrc（若被 .bash_profile 调用）
+    5. /etc/bashrc（若被 .bashrc 调用）
+    - 非登录式 shell 仅加载 ~/.bashrc 和 /etc/bashrc。
+- source 原因：修改配置文件后，当前 shell 不会自动重新读取，需执行 source 或 . 使配置立即生效（否则需重新登录）。
+- 环境变量覆盖 Spring 配置：
+    - Spring Boot 支持通过环境变量覆盖配置，如 SPRING_DATASOURCE_PASSWORD=xxx，会自动映射为 spring.datasource.password。
+    - 与 -D 区别：-D 设置的是 JVM 系统属性（System.getProperty），需 java -Dkey=value；环境变量是操作系统级别，优先级通常低于 -D 但高于 application.yml。
+    - 优先级：命令行参数 > -D 系统属性 > 环境变量 > application.yml。
+- 追问（多 JDK 版本）：
+    - 方案1：不修改全局 JAVA_HOME，启动脚本中显式指定 /opt/jdk11/bin/java -jar app.jar。
+    - 方案2：使用 alternatives 管理多版本 JDK，切换默认版本。
+    - 方案3：在应用启动脚本开头 export JAVA_HOME=/opt/jdk11，仅对当前进程有效。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Linux 文件上传下载工具（scp、rsync、sftp、wget/curl）的选型与实践
+> 在 Java 后端部署与运维中，经常需要在服务器之间传输文件（如上传 JAR 包、下载日志）。请回答：
+> 1. scp、rsync、sftp 三者在传输机制、增量传输、断点续传上有何区别？分别适合什么场景？
+> 2. 如何使用 scp 从本地上传文件到远程服务器？如何从远程下载日志到本地？如何指定端口和密钥文件？
+> 3. wget 和 curl 都能下载文件，它们有何区别？在只安装了其中之一的服务器上，如何用 curl 实现 wget 的下载功能（含断点续传、限速）？
+     > 追问：rsync 的 --delete 参数有什么风险？如何用 rsync 实现服务器目录的实时同步？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- scp / rsync / sftp 区别：
+    - scp：基于 SSH，全量传输，无增量，无断点续传。适合一次性小文件传输，简单易用。
+    - rsync：支持增量传输（仅同步变化部分），支持断点续传（--partial），支持压缩传输（-z），适合大文件或目录同步。首次传输仍为全量。
+    - sftp：交互式文件传输，基于 SSH，支持断点续传（reget/reput），适合手动交互操作。
+- scp 用法：
+    - 上传：scp -P 22 -i key.pem app.jar user@host:/opt/app/
+    - 下载：scp -P 22 user@host:/var/log/app.log ./
+    - 递归：scp -r dir user@host:/path/
+- wget vs curl：
+    - wget：专注下载，支持递归下载、断点续传（-c）、限速（--limit-rate），默认输出到文件。
+    - curl：功能更广，支持多种协议（HTTP/FTP/SCP 等），可发送 POST 请求、自定义 Header，默认输出到标准输出，需 -o 保存文件。
+    - curl 实现 wget 功能：curl -C - --limit-rate 1M -o file.zip http://example.com/file.zip（-C - 断点续传，--limit-rate 限速）。
+- 追问：
+    - rsync --delete 会删除目标目录中源目录不存在的文件，若源目录为空或路径写错，可能清空目标目录，风险极高，建议先加 --dry-run 预览。
+    - 实时同步：rsync + inotify（或 lsyncd）监控文件变化后触发同步，或使用 rsync 定时任务（crontab）定期同步。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：Linux 压缩与解压缩命令及 Java 后端部署场景
+> Java 后端部署时，常使用 tar.gz、zip 等格式打包应用或备份日志。请回答：
+> 1. tar、gzip、zip 三者有何区别？tar.gz 和 tar.bz2 有何不同？如何创建和解压这些格式的文件？
+> 2. 如何使用 tar 打包时排除特定目录（如 logs、.git）？如何只解压压缩包中的某个文件？
+> 3. 在服务器磁盘空间不足时，如何将大日志文件压缩并保留原始文件？如何查看压缩包内容而不解压？
+     > 追问：zip 与 tar.gz 在跨平台（Windows/Linux）兼容性上有何差异？为什么很多 Java 项目发布包使用 tar.gz 而非 zip？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- tar / gzip / zip 区别：
+    - tar：打包工具，将多个文件合并为一个文件（.tar），不压缩。
+    - gzip：压缩工具，压缩单个文件（.gz），不能打包目录。
+    - tar.gz：先 tar 打包再 gzip 压缩，是 Linux 最常见的压缩格式。
+    - zip：打包+压缩一体，跨平台好，但压缩率通常低于 gzip。
+- tar.gz vs tar.bz2：bz2 压缩率更高但速度更慢，gz 速度更快但压缩率略低。生产环境常用 tar.gz。
+- 创建与解压：
+    - 打包压缩：tar -czvf app.tar.gz app/
+    - 解压：tar -xzvf app.tar.gz
+    - 仅查看内容：tar -tzvf app.tar.gz
+    - 解压单个文件：tar -xzvf app.tar.gz app/config/application.yml
+    - 排除目录：tar -czvf app.tar.gz --exclude=logs --exclude=.git app/
+- 磁盘空间不足处理：
+    - 压缩并删除原文件：gzip access.log（生成 access.log.gz，原文件消失）。
+    - 压缩但保留原文件：gzip -c access.log > access.log.gz（原文件保留）。
+    - 查看压缩包内容：zcat access.log.gz | less 或 zless access.log.gz。
+- 追问：
+    - zip 在 Windows 和 Linux 上均能直接打开，兼容性更好；tar.gz 在 Windows 需第三方工具（如 7-Zip）。
+    - Java 项目发布包用 tar.gz 的原因：Linux 服务器原生支持，保留文件权限（可执行位），且压缩率更高，适合脚本自动化处理。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
