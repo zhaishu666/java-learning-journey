@@ -780,7 +780,7 @@ bash
 
 ---
 
-## Day 3 (2026-09-25) —— Shell 变量（局部变量、全局变量、常量）
+## Day 6 (2026-09-25) —— Shell 变量（局部变量、全局变量、常量）
 
 ### 题目1：Shell 变量的分类、作用域与 export 的本质
 > 在 Shell 脚本中，变量按作用域可分为局部变量、全局变量和环境变量。请回答：
@@ -866,6 +866,105 @@ bash
 - 追问：
     - 判断是否被 source 执行：比较 $0 与 ${BASH_SOURCE[0]}，若不同，则说明脚本被 source（因为 source 时 $0 是调用者的名称）。
     - 也可通过 (return 0 2>/dev/null) 判断：若在 source 中，return 成功；若在普通执行中，return 报错。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 7 (2026-09-26) —— Shell 特殊变量与 Shell 环境类型
+
+### 题目1：Shell 特殊变量 `$?`、`$$`、`$!`、`$0`、`$#`、`$@`、`$*` 在部署脚本中的含义与实战
+> 在编写 Java 后端部署脚本时，经常需要判断上一条命令是否成功、获取脚本自身名称、处理参数等。请回答：
+> 1. `$?`、`$$`、`$!`、`$0`、`$#`、`$@`、`$*` 分别代表什么？其中哪些是只读的？哪些会随上下文变化？
+> 2. 如何用 `$?` 实现命令失败立即退出脚本？`set -e` 与手动判断 `$?` 有何区别？`set -o pipefail` 又解决了什么问题？
+> 3. `$@` 与 `$*` 在不加引号和加引号时分别如何展开？为什么推荐使用 `"$@"` 传参？
+     > 追问：`$0` 在 `source` 执行和 `bash` 执行时有何不同？如何编写一个脚本既能被 `source` 也能被直接执行，并正确获取自身路径？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 特殊变量含义：
+    - `$?`：上一条命令的退出状态码，0 表示成功，非 0 表示失败。只读。
+    - `$$`：当前 Shell 的进程 ID（PID）。只读。
+    - `$!`：最近一个后台命令的 PID。只读。
+    - `$0`：当前脚本或 Shell 的名称。在脚本中为脚本路径，在交互式 Shell 中为 `-bash`。
+    - `$#`：参数个数。
+    - `$@`：所有参数，作为独立字符串列表。
+    - `$*`：所有参数，作为单个字符串（默认以空格分隔）。
+- 失败退出：
+    - 手动：`command || exit 1`
+    - `set -e`：任何命令返回非 0 立即退出脚本（但不包括条件判断中的命令）。
+    - `set -o pipefail`：管道中任一命令失败，整个管道返回失败（默认只返回最后一个命令的状态）。
+- `$@` 与 `$*` 展开：
+    - 不加引号：两者均按空格分词，效果相同。
+    - 加引号：`"$@"` 展开为 `"$1" "$2" ...`，每个参数独立；`"$*"` 展开为 `"$1 $2 ..."` 单个字符串。
+    - 推荐 `"$@"`，可保留参数中的空格和特殊字符。
+- 追问：
+    - `source` 执行时，`$0` 是调用者的 Shell 名称（如 `bash`）；`bash` 执行时，`$0` 是脚本路径。
+    - 获取脚本自身路径：`SCRIPT_PATH="${BASH_SOURCE[0]}"`，再 `cd "$(dirname "$SCRIPT_PATH")"` 进入脚本目录。
+    - 判断是否被 source：`if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then echo "被 source"; else echo "被直接执行"; fi`
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：交互式 Shell 与非交互式 Shell 的区别及 Java 部署中的影响
+> Shell 分为交互式和非交互式，这对环境变量加载和脚本执行有直接影响。请回答：
+> 1. 什么是交互式 Shell？什么是非交互式 Shell？`bash -i`、`bash script.sh`、`ssh user@host 'command'` 分别属于哪种？
+> 2. 交互式 Shell 和非交互式 Shell 在启动时分别加载哪些配置文件（如 `~/.bashrc`、`~/.bash_profile`、`/etc/profile`）？为什么通过 `ssh` 远程执行命令时，`~/.bashrc` 可能不会被执行？
+> 3. 在 Java 后端部署中，通过 `crontab` 定时执行脚本时，环境变量缺失导致 Java 启动失败，如何解决？`cron` 默认使用什么 Shell？如何确保脚本加载了正确的环境变量？
+     > 追问：`#!/bin/bash` 与 `#!/bin/sh` 在非交互式脚本中有何区别？为何推荐使用 `#!/bin/bash`？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 交互式 vs 非交互式：
+    - 交互式：用户可输入命令并立即看到结果，如登录终端、`bash -i`。
+    - 非交互式：执行脚本或单条命令，无用户交互，如 `bash script.sh`、`ssh host 'ls'`。
+- 配置文件加载：
+    - 交互式登录 Shell：`/etc/profile` → `~/.bash_profile` → `~/.bashrc` → `/etc/bashrc`
+    - 交互式非登录 Shell：`~/.bashrc` → `/etc/bashrc`
+    - 非交互式 Shell（如执行脚本）：通常不加载任何配置文件，除非 `BASH_ENV` 指定。
+    - `ssh user@host 'command'`：非交互式非登录，默认不加载 `~/.bashrc`，除非显式 `source`。
+- crontab 环境变量问题：
+    - `cron` 默认使用 `/bin/sh`，环境变量极简（仅 `HOME`、`PATH` 等少量变量）。
+    - 解决：在脚本开头显式 `source /etc/profile` 或 `source ~/.bash_profile`，或直接写绝对路径，或在 crontab 中定义环境变量。
+    - 推荐：脚本中使用绝对路径，并在脚本开头设置 `PATH` 和 `JAVA_HOME`。
+- 追问：
+    - `#!/bin/bash` 使用 Bash 解释器，支持数组、`[[ ]]`、`local` 等特性。
+    - `#!/bin/sh` 可能是 `dash` 或其他精简 Shell，不支持 Bash 扩展，可移植性好但功能弱。推荐 `#!/bin/bash`。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：登录 Shell 与非登录 Shell 的配置文件加载顺序及 Java 环境变量持久化
+> 在服务器上安装 JDK 后，需要配置 `JAVA_HOME` 和 `PATH` 使所有用户和脚本都能使用。请回答：
+> 1. 登录 Shell 与非登录 Shell 的启动流程有何不同？`/etc/profile`、`~/.bash_profile`、`~/.bashrc` 各自的加载时机是什么？
+> 2. 若希望 `JAVA_HOME` 对所有用户生效，应写入哪个文件？若只对当前用户生效，应写入哪个文件？为什么有时写了 `~/.bashrc` 但 `ssh` 远程执行命令时读不到？
+> 3. 如何验证当前 Shell 是登录 Shell 还是非登录 Shell？`shopt -q login_shell` 与 `echo $0` 哪种方式更可靠？
+     > 追问：在 Docker 容器中运行 Java 应用时，环境变量应如何设置？`ENV` 指令与 `RUN export` 有何区别？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 登录 Shell 与非登录 Shell：
+    - 登录 Shell：需要输入用户名密码，或 `ssh` 登录，或 `bash --login`。加载 `/etc/profile` → `~/.bash_profile` → `~/.bashrc`。
+    - 非登录 Shell：打开新终端标签、执行脚本、`bash` 命令。通常只加载 `~/.bashrc`。
+- 环境变量持久化：
+    - 对所有用户生效：写入 `/etc/profile` 或 `/etc/profile.d/java.sh`。
+    - 对当前用户生效：写入 `~/.bash_profile` 或 `~/.bashrc`。
+    - `ssh` 远程执行命令属于非交互非登录，不加载 `~/.bashrc`，因此写入 `~/.bashrc` 的变量可能读不到。解决：写入 `~/.bash_profile` 并在其中 source `~/.bashrc`，或使用 `ssh host 'source ~/.bashrc; command'`。
+- 判断登录 Shell：
+    - `shopt -q login_shell && echo "登录 Shell" || echo "非登录 Shell"`
+    - `echo $0` 输出 `-bash` 表示登录 Shell，`bash` 表示非登录 Shell。
+- 追问：
+    - Docker 中设置环境变量：`ENV JAVA_HOME=/usr/local/jdk`，在构建和运行时均生效。
+    - `RUN export JAVA_HOME=...` 仅在当前构建层有效，后续层和运行时无效。推荐使用 `ENV`。
 </details>
 
 **我的初答**：
