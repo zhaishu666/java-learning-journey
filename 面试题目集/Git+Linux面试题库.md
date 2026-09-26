@@ -593,8 +593,125 @@ nohup/&/systemd：
 </details>
 
 **我的初答**：
-**错漏点**：
+1. Linux中环境变量按照作用范围分为局部变量和全局变量.
+- 临时设置: 直接执行export var_name=value即可
+- 永久设置: 对于单个账户,配置在~/.bashrc文件中;对于所有账户,配置在/etc/profile文件中
+- export的作用: 使用当前环境运行
+2. etc/profile -> /etc/bashrc -> ~/.bash_profile -> ~/.bashrc;后两者适用于单个用户,前两者全局共享
+- export是单向的,有时候子环境需要执行父环境的内容,source作用就是重新用全局执行
+3. 不了解
 
+**错漏点**：
+<details>
+<summary><strong>点击展开错漏点</strong></summary>
+
+你的初答点评
+
+- **分类**：术语不准确。标准说法是**系统级（全局）/用户级/临时（会话级）**，"局部变量和全局变量"容易和 shell 局部变量混淆——而且 shell 里"局部变量"是指未 export、只在当前 shell 有效的变量，这正是 export 要解释的点，你自己却把 export 答成了"使用当前环境运行"，**说反了**：export 是把变量传给子进程/子 shell。
+
+- **加载顺序**：顺序大致对，但漏了关键的区分逻辑——**登录 shell vs 非登录 shell** 走的加载链不一样，这才是考点。
+
+- **source 的解释**："重新用全局执行"表述含混，本质是"在当前 shell 中执行而不是开子 shell"。
+
+- **第 3 问 + 追问**：空白，而这是面试官区分"会背命令"和"真部署过"的部分，必须补上。
+
+
+---
+
+## 参考答案
+
+### 1. 环境变量的分类、设置与 export
+
+按作用范围分三类：
+
+表格
+
+| 类别  | 作用范围 | 设置方式 |
+| --- | --- | --- |
+| 临时（会话级） | 仅当前终端会话，关闭即失效 | `export JAVA_HOME=/usr/local/jdk17` |
+| 用户级 | 仅对当前用户永久生效 | 写入 `~/.bashrc` 或 `~/.bash_profile` |
+| 系统级 | 对所有用户永久生效 | 写入 `/etc/profile` 或 `/etc/profile.d/*.sh`（需 root） |
+
+**export 的作用（纠正你的答案）：**
+
+直接在 shell 里写 `VAR=value` 定义的只是**当前 shell 的局部变量，子进程看不到**。`export VAR=value` 把它提升为**环境变量**，使得该 shell 启动的所有子进程（比如你 `java -jar` 启动的 JVM）都能继承到它。验证方法：`VAR=a` 后开 `bash` 子 shell 里 `echo $VAR` 是空的；export 之后就有值。
+
+### 2. 四个配置文件的加载顺序
+
+**关键前提：登录 shell 和非登录 shell 加载链不同。**
+
+- **登录 shell**（SSH 登录服务器、su - 切换用户）： `/etc/profile` →（其内部会遍历 `/etc/profile.d/*.sh`，并调用 `/etc/bashrc`）→ `~/.bash_profile` →（其内部通常调用 `~/.bashrc`）
+
+- **非登录 shell**（登录后再开一个终端窗口、执行 `bash`）：
+  只加载 `/etc/bashrc` → `~/.bashrc`，**不读 /etc/profile 和 ~/.bash_profile**
+
+
+**适用场景：**
+
+- `/etc/profile`：系统级、登录时生效，适合放全局 JAVA_HOME；
+
+- `/etc/bashrc`：系统级、所有 bash 都生效，适合放全局 alias、umask；
+
+- `~/.bash_profile`：用户级、仅登录时执行一次，适合放用户专属 PATH；
+
+- `~/.bashrc`：用户级、每次开 shell 都执行，运维最常改的就是它（这也是 `/etc/profile.d/` 下建独立脚本的原因——好维护、不污染主文件）。
+
+
+**为什么改完要 source：**
+
+配置文件只在 **shell 启动时**读取一次，改文件不会通知已运行的 shell。`source ~/.bashrc`（等价于 `. ~/.bashrc`）的作用是**在当前 shell 中直接执行该脚本**，而不是像 `./script.sh` 那样开一个子 shell——子 shell 里 export 的变量随子 shell 退出就没了，当前会话照样没生效。所以改完必须 `source` 或重开终端。
+
+### 3. Spring Boot 用环境变量覆盖配置
+
+Spring Boot 有**外部化配置的优先级机制**，操作系统环境变量的优先级高于 `application.yml`，所以：
+
+bash复制
+
+```bash
+# yml 中是 spring.datasource.password: dev_password
+export SPRING_DATASOURCE_PASSWORD=prod_password
+java -jar app.jar
+```
+
+启动后生效的就是 `prod_password`，无需改 jar 包。命名规则：**大写、点号换下划线、中划线换下划线**（`spring.datasource.password` → `SPRING_DATASOURCE_PASSWORD`）。Docker/K8s 部署时也正是靠这个机制注入配置（Dockerfile 的 `ENV`、K8s 的 `env`）。
+
+**与 `-D` 参数的区别：**
+
+- `-Dspring.datasource.password=xxx` 是 **JVM 系统属性**（System Property），通过 `System.getProperty()` 读取，Spring 也会识别，**优先级比环境变量更高**；
+
+- 环境变量是**进程级**的，同一环境变量对该进程所有代码可见；`-D` 只在 JVM 内有效；
+
+- 优先级链（由高到低，常考）：命令行参数 `--xxx` > `-D` JVM 参数 > OS 环境变量 > `application-prod.yml` > `application.yml`；
+
+- 实践建议：**密码这类敏感信息用环境变量注入**（不落盘、不进启动脚本），JVM 调优参数（内存、GC）用 `-D` 或 `-X` 参数。
+
+
+### 追问：多应用不同 JDK，不动全局 JAVA_HOME
+
+思路是**把 JDK 版本绑定到进程，而不是绑定到系统**：
+
+1. **启动脚本中临时指定**（最常用）：
+
+bash
+
+  ```bash
+  #!/bin/bash
+  export JAVA_HOME=/usr/local/jdk17
+  export PATH=$JAVA_HOME/bin:$PATH
+  nohup java -jar app-a.jar > app.log 2>&1 &
+  ```
+
+每个应用一个启动脚本，export 只对脚本启动的进程生效，互不影响、不改全局。
+
+2. **直接用绝对路径启动**：`/usr/local/jdk11/bin/java -jar app-b.jar`，完全不碰 JAVA_HOME。
+
+3. **容器化隔离**（现代标准做法）：每个应用打自己基础镜像的 Docker 镜像（`FROM eclipse-temurin:17` / `FROM eclipse-temurin:11`），JDK 版本随镜像走，彻底隔离。
+
+
+---
+
+这题的答题策略：前两问快速带过（是基础门槛分），第 3 问和追问要展开讲"优先级链"和"进程级隔离"——这是面试官判断你有没有真实部署经验的点。
+</details>
 
 ### 题目2：Linux 文件上传下载工具（scp、rsync、sftp、wget/curl）的选型与实践
 > 在 Java 后端部署与运维中，经常需要在服务器之间传输文件（如上传 JAR 包、下载日志）。请回答：
@@ -656,6 +773,99 @@ nohup/&/systemd：
 - 追问：
     - zip 在 Windows 和 Linux 上均能直接打开，兼容性更好；tar.gz 在 Windows 需第三方工具（如 7-Zip）。
     - Java 项目发布包用 tar.gz 的原因：Linux 服务器原生支持，保留文件权限（可执行位），且压缩率更高，适合脚本自动化处理。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 3 (2026-09-25) —— Shell 变量（局部变量、全局变量、常量）
+
+### 题目1：Shell 变量的分类、作用域与 export 的本质
+> 在 Shell 脚本中，变量按作用域可分为局部变量、全局变量和环境变量。请回答：
+> 1. 什么是局部变量、全局变量、环境变量？它们的生效范围有何区别？在函数中定义的变量默认是局部的还是全局的？
+> 2. export 的作用是什么？为什么在脚本中定义的变量，有时在当前终端 source 后能生效，但子进程却读不到？
+> 3. 如何在函数中声明真正的局部变量？local 关键字与直接赋值有何区别？如果不加 local，函数内修改同名全局变量会发生什么？
+     > 追问：父 Shell 中定义的环境变量，在子 Shell 中修改后，父 Shell 能否感知？为什么？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 变量分类：
+    - 局部变量：仅在函数内部有效，需用 local 声明。Shell 中默认不加 local 的变量均为全局变量。
+    - 全局变量：当前 Shell 会话中有效，包括脚本内所有函数，但不会自动传给子进程。
+    - 环境变量：通过 export 导出，会随进程传递给子进程（包括子 Shell、Java 进程等）。
+- export 作用：将 Shell 变量标记为“环境变量”，使其能被 fork 出的子进程继承。未 export 的变量仅当前 Shell 可见。
+- local 与直接赋值的区别：
+    - local var=value：在当前函数栈中创建局部变量，函数返回后销毁，不影响外部同名变量。
+    - 直接赋值 var=value：若函数外已有同名全局变量，会修改其值；若没有，则创建全局变量，函数外仍可访问。
+- 追问：
+    - 子 Shell 修改环境变量不会影响父 Shell，因为子 Shell 是独立的进程，拥有自己的一份变量副本。父 Shell 的环境变量被子 Shell 复制后，修改仅作用于副本。
+    - 若要让修改生效，需通过文件（如写入临时文件）或 source 在同一 Shell 中执行。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Shell 常量的声明（readonly）与变量替换的高级用法
+> 在编写部署脚本时，常需要定义常量（如 APP_HOME、LOG_DIR）以防止误修改。请回答：
+> 1. 如何声明一个常量？readonly 与 declare -r 有何区别？若尝试修改 readonly 变量，会发生什么？
+> 2. 如何删除一个变量？unset 能否删除 readonly 变量？
+> 3. 请说明以下变量替换语法的含义与典型用途：${VAR:-default}、${VAR:=default}、${VAR:?error}、${VAR:+value}。
+     > 追问：${VAR:-default} 与 ${VAR-default} 的区别是什么？在变量未定义和变量为空两种情况下，它们的行为分别如何？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 常量声明：
+    - readonly VAR=value 或 declare -r VAR=value，两者等价。
+    - 修改 readonly 变量会报错 bash: VAR: readonly variable，脚本继续执行（不会退出，除非 set -e）。
+    - readonly 也可用于函数：readonly -f func_name，禁止函数被覆盖。
+- 删除变量：unset VAR。但 unset 无法删除 readonly 变量，会报错。
+- 变量替换语法：
+    - ${VAR:-default}：若 VAR 未定义或为空，返回 default，但不修改 VAR。
+    - ${VAR:=default}：若 VAR 未定义或为空，将 VAR 赋值为 default 并返回。
+    - ${VAR:?error}：若 VAR 未定义或为空，输出 error 并退出脚本（常用于必填参数校验）。
+    - ${VAR:+value}：若 VAR 已定义且非空，返回 value，否则返回空。
+- 追问：
+    - ${VAR:-default}：冒号表示“未定义或为空”均触发默认值。
+    - ${VAR-default}：不带冒号，仅在 VAR 未定义时触发默认值；若 VAR 定义为空字符串，则返回空字符串。
+    - 区别核心在于是否把“空字符串”视为未定义。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：Shell 变量在 Java 后端部署脚本中的综合应用（命令替换、位置参数、脚本传参）
+> 在编写 Spring Boot 应用启动脚本（如 start.sh）时，通常需要接收参数、拼接命令、传递变量。请回答：
+> 1. 脚本中如何使用位置参数（$1、$2、$@、$#）？$@ 与 $* 有何区别？如何校验参数个数？
+> 2. 命令替换 `$(command)` 与反引号（`command`）有何区别？为什么推荐使用 $()？
+> 3. 如何将脚本中的变量传递给 Java 应用（如 -Dspring.profiles.active=$PROFILE）？若变量值包含空格或特殊字符，应如何处理（引号的作用）？
+     > 追问：如何编写一个脚本，使其只能通过 source 执行而不能通过 sh 执行？用 $0 与 BASH_SOURCE 如何判断？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 位置参数：
+    - $1、$2...：第 1、2 个参数。
+    - $@：所有参数，作为独立字符串列表（推荐）。
+    - $*：所有参数，作为单个字符串（若不加引号，效果与 $@ 相同；加引号后合并为一个字符串）。
+    - $#：参数个数。
+    - 校验：if [ $# -lt 1 ]; then echo "Usage: $0 start|stop"; exit 1; fi
+- 命令替换：
+    - $() 与 `` 均用于执行命令并获取输出。
+    - $() 支持嵌套，可读性更好；反引号嵌套时需转义，易出错。
+    - 推荐使用 $()。
+- 变量传递与引号：
+    - 传给 Java：java -Dspring.profiles.active="$PROFILE" -jar app.jar
+    - 若变量含空格，必须加双引号，否则会被分词为多个参数。
+    - 推荐统一使用双引号包裹变量：echo "$VAR"，除非明确需要分词。
+- 追问：
+    - 判断是否被 source 执行：比较 $0 与 ${BASH_SOURCE[0]}，若不同，则说明脚本被 source（因为 source 时 $0 是调用者的名称）。
+    - 也可通过 (return 0 2>/dev/null) 判断：若在 source 中，return 成功；若在普通执行中，return 报错。
 </details>
 
 **我的初答**：
