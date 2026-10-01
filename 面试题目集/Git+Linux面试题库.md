@@ -91,8 +91,83 @@
 </details>
 
 **我的初答**：
-**错漏点**：
+1. 创建用户: useradd [-g -d] 用户名. 其中-g表示指定用户的用户组,-d表示指定home目录 设置密码遗忘了
+2. 创建用户组: groupadd 用户组名
+3. 通过chown命令可以修改文件的所有者和所属组;语法: `chown [-R] [用户][:][用户组] 文件或文件夹` -R表示级联修改文件夹内部的所属
+4. chmod命令中r权限为4,w权限为2,x权限为1,所以755就代表rwxr-xr-x,644代表rw-r--r--
+5. root用户权限太大,容易误删或和误改从而破坏Linux系统.如果被入侵,专用用户一般只能操作直接home目录下的内容,这样最多只会损失一个home目录下的内容
+6. 登录用户直接在命令行左侧就能看到,查看用户所属组: id [用户名]; 查看用户列表: `getent passwd`
+7. su 用户名 :切换用户 sudo只是临时通过管理员权限执行命令,su则是切换用户使用
 
+**错漏点**：
+<details>
+<summary><strong>点击展开错漏点</strong></summary>
+
+你的初答点评
+
+- **创建用户**：`useradd -g -d` 参数正确，加分项可以补 `-m`（自动创建家目录，很多发行版默认不建）。
+
+- **设置密码**：空白——答案是 `passwd 用户名`，不能忘。
+
+- **用户加入组**：没答——这是题目明确要求的，用 `usermod -aG`。
+
+- **chmod/chown**：完全正确，`755 → rwxr-xr-x`、`644 → rw-r--r--` 转换熟练，这部分可以满分。
+
+- **不用 root**："最多损失一个 home 目录"说小了——隔离的价值不止目录范围，还包括无法动其他服务、无法读敏感文件、无法杀别的进程，以及权责可审计。
+
+- **查看当前用户**："看命令行左侧"不是命令——标准答案是 `whoami`（或 `who` 看所有登录会话）。
+
+- **su vs sudo**：核心区别答对了，再补"sudo 有授权边界和审计日志"就完整了
+
+### 为什么不用 root 运行 Java 应用
+
+**root 的风险：**
+
+1. **无权限边界**：root 进程可以读写系统任何文件（`/etc/shadow`、其他应用的数据、系统配置）、杀掉任何进程、装软件、开端口。Java 应用一旦有漏洞（RCE、任意文件读写、反序列化），攻击者拿到的就是**整台机器的最高权限**——这就是"最小权限原则"。
+
+2. **误操作代价大**：root 下一条 `rm -rf` 路径写错就是事故；普通用户会因权限不足被系统拦下，相当于一层保险。
+
+3. **不可审计**：所有操作都是 root 干的，出问题分不清是哪个服务、哪个运维做的。
+
+
+**专用用户的隔离价值（入侵场景下）：**
+
+- 攻击者只能读写 `appuser` 有权限的文件——改不了系统配置、读不到其他应用的密钥和数据、装不了 rootkit；
+
+- **横向移动被阻断**：拿不到 root，就无法轻易攻击同机的其他服务和其他用户；
+
+- 配合文件权限（如应用目录 750、配置文件 640），把破坏范围锁死在应用自身目录内；
+
+- 出问题时可通过该用户的日志、进程归属快速定位影响面。
+
+
+### 追问答案
+
+bash复制
+
+```bash
+whoami                 # 当前用户是谁
+who / w                # 当前有哪些用户登录了系统
+cat /etc/passwd        # 查看所有用户列表（或 getent passwd）
+id appuser             # 查看用户的 uid、主组、所有附加组
+groups appuser         # 只看所属组
+su - appuser           # 切换用户（- 表示同时加载该用户的环境变量，推荐）
+exit                   # 退回原用户
+```
+
+**su 与 sudo 的区别：**
+
+表格
+
+| 维度  | su  | sudo |
+| --- | --- | --- |
+| 本质  | **切换身份**，变成另一个用户（常切 root） | **以他人身份执行单条命令**，执行完就回来 |
+| 密码  | 要输入**目标用户**的密码（root 密码扩散风险） | 输入**自己**的密码，目标密码不需要 |
+| 授权粒度 | 一刀切——知道 root 密码就是完整 root | 可在 `/etc/sudoers` 精细控制：允许谁、执行哪些命令 |
+| 审计  | 难追踪是谁切的 | 每条 sudo 命令都有日志记录，**可追责** |
+
+结论：生产环境推荐 sudo（最小授权 + 可审计），避免把 root 密码给多个人。
+</details>
 
 ### 题目3：文件查找与文本处理命令在 Java 后端日志排查中的应用
 > Java 后端服务通常将日志输出到文件，排查问题时需要快速定位。请回答：
@@ -123,6 +198,10 @@
 </details>
 
 **我的初答**：
+1. 跟踪文件:tail Linux路径 跟踪尾部100行:tail -100 Linux路径 持续跟踪并过滤:tail -f Linux路径 | grep "需要过滤的内容"
+2. grep "Exception" 文件 查找包含Exception的行, 显示匹配前后5行:-C 5 统计次数: -c
+3. 不了解
+
 **错漏点**：
 
 ---
@@ -157,8 +236,75 @@
 </details>
 
 **我的初答：**
+1. 文件rwx: r代表查看该文件内容的权限,w代表修改内容的权限,x代表执行该文件的权限
+2. 目录rwx: r代表查看目录内容的权限,w代表在该目录下添加或删除目录及文件的权限,x代表切换到该工作目录或者执行该目录下内容的权限
+3. 不能读取该文件,因为该用户虽然有文件x权限,但却没有其父目录的x权限,删除该目录下的文件需要/opt/myapp/static的w权限;通过chmod -R 645 /opt/myapp/static 可让文件执行
+4. sticky位的知识不了解
 
 **错漏点：**
+<details>
+<summary>点击展开错漏点</summary>
+
+你的初答点评
+
+- **文件 rwx**：正确。
+
+- **目录 rwx**：大体正确，但 x 的表述要更精确——目录的 x 是**"进入/穿越"权限**（access 目录下的 inode），不只是"切换工作目录"；它同时也是"按文件名访问目录内任何文件"的前提。这个精确表述正是后面场景题的解题钥匙。
+
+- **能否读取**：结论和理由都对——www-data 虽然对 index.html 有 777，但卡在父目录没有 x，**路径穿越就失败了**。可以再补一个细节：目录 644 意味着**连所有者自己都没有 x**，这目录实际上谁都进不去（root 除外），所以 644 对目录来说基本是个错误配置。
+
+- **删除权限**：答了一半——删除文件需要**目录的 w + x**（w 才能改目录项，x 才能进入目录），跟你对文件本身有没有权限**无关**。漏了 x。
+
+- **`chmod -R 645` 的写法有问题**：`-R` 会把目录里的文件也设成 645（文件多了个组内 x，没必要且不规范）；修复目录权限的标准做法是 `chmod 755 /opt/myapp/static`（或 `chmod o+x`）。另外"让文件执行"的说法不对，这里目的是让目录可进入，不是执行文件。
+
+- **sticky 位**：空白，必须补——这是这题的压轴点。
+
+
+---
+
+## 参考答案
+
+### 1. 文件与目录的 rwx 语义
+
+表格
+
+| 权限  | 对文件 | 对目录 |
+| --- | --- | --- |
+| r   | 读取文件内容（cat、less） | 列出目录里的**文件名**（ls） |
+| w   | 修改文件内容 | 在目录内**创建、删除、重命名**文件/子目录（修改目录项） |
+| x   | 作为程序/脚本执行 | **进入（cd）和穿越该目录**——按路径访问目录内任何文件的前提 |
+
+经典辨析（面试爱考）：目录只有 r 没有 x 时，`ls` 能看到文件名，但 `cat` 里面任何文件都报 Permission denied——**看到 ≠ 能摸到**。
+
+### 2. 场景分析：能否读取 index.html
+
+**不能。** 访问 `/opt/myapp/static/index.html` 需要路径上**每一级目录都有 x 权限**。static 目录是 644（rw-r--r--），www-data 作为"其他人"只有 r 没有 x——无法穿越该目录，内核在做路径解析（name resolution）时就拒绝了，**根本轮不到检查 index.html 自身的 777**。
+
+类比：目录是楼道的门，文件是房间里的东西。楼道门锁着，房间门敞着也没用。
+
+修复：`chmod 755 /opt/myapp/static`（目录标准权限：所有者 rwx，组和其他人 r-x）。部署经验：Nginx 读取静态资源，**目录一律 755、文件一律 644**，并保证路径上每一级目录 others 都有 x。
+
+### 3. 删除文件需要什么权限
+
+删除（或重命名）目录下的文件，需要的是**目录的 w + x 权限**，与被删文件自身的权限**无关**——因为删除的本质是修改目录里的条目，不是改文件。
+
+推论（很反直觉，常考）：一个文件即使设成 444 只读，只要所在目录对你是 w+x，你照样能删掉它（rm 会提示确认，加 -f 直接删）。**保护文件不被删，要靠锁目录权限，而不是锁文件权限。**
+
+### 4. Sticky 位（粘滞位）
+
+目录设置 sticky 位后（`chmod +t dir`，权限显示为 `drwxrwxrwt`，典型例子就是 `/tmp` 的 1777）：
+
+- 目录对所有人可写，但**只有三种人能删除/重命名目录下的文件：文件的所有者、目录的所有者、root**；
+
+- 其他用户即使有目录的 w 权限，也只能删自己的文件，删不了别人的。
+
+
+应用场景：多人共享的临时目录（/tmp）、多应用共用上传目录——既保证大家都能写，又防止互相误删/恶意删除。它解决的是"可写目录里删除权失控"的问题。
+
+---
+
+这题的答题主线可以总结成一句话：**"文件的权限管内容，目录的权限管路径和增删"**——把这条主线说清楚，三个小问自然就都顺了。
+</details>
 
 > 题目 2：请解释 umask 的作用，并计算 umask 为 027 时新建普通文件和目录的默认权限。命令 chmod 2775 /var/log/myapp 中 2 是什么权限？对目录有何效果？SUID、SGID、Sticky 分别作用于什么对象？Java 后端服务以 app 用户运行，日志目录需要 app 可写、同组开发可读、其他用户无权限，且新日志文件自动继承该组，如何设置目录权限和 ACL？给出关键命令。
 
@@ -965,6 +1111,552 @@ bash
 - 追问：
     - Docker 中设置环境变量：`ENV JAVA_HOME=/usr/local/jdk`，在构建和运行时均生效。
     - `RUN export JAVA_HOME=...` 仅在当前构建层有效，后续层和运行时无效。推荐使用 `ENV`。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 5 (2026-09-27) —— Shell 字符串、数组、常用内置命令
+
+### 题目1：Shell 字符串处理的 ${} 扩展语法与实战陷阱
+> 在 Java 后端部署脚本中，经常需要从路径、版本号、配置值中提取子串或替换内容。请回答：
+> 1. 如何获取字符串长度、提取子串、替换内容？请说明 `${#VAR}`、`${VAR:offset:length}`、`${VAR/old/new}`、`${VAR//old/new}` 的含义。
+> 2. `${VAR#pattern}`、`${VAR##pattern}`、`${VAR%pattern}`、`${VAR%%pattern}` 分别如何截断字符串？请举例说明（如从 `/opt/app/app-1.0.0.jar` 中提取文件名和版本号）。
+> 3. 为什么在字符串拼接时推荐使用 `${VAR}` 而不是 `$VAR`？在什么情况下 `$VAR` 会导致歧义？
+     > 追问：`${VAR:-default}` 与 `${VAR:=default}` 在字符串处理中如何配合使用？如何判断一个字符串是否为空或仅含空格？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 基本操作：
+    - `${#VAR}`：字符串长度。
+    - `${VAR:offset:length}`：从 offset 开始截取 length 个字符（offset 从 0 开始，可为负表示从末尾算起）。
+    - `${VAR/old/new}`：替换第一个匹配的 old 为 new。
+    - `${VAR//old/new}`：替换所有匹配的 old 为 new。
+- 截断语法：
+    - `${VAR#pattern}`：从左侧删除最短匹配。
+    - `${VAR##pattern}`：从左侧删除最长匹配。
+    - `${VAR%pattern}`：从右侧删除最短匹配。
+    - `${VAR%%pattern}`：从右侧删除最长匹配。
+    - 示例：FILE="/opt/app/app-1.0.0.jar"
+        - 文件名：`${FILE##*/}` → app-1.0.0.jar
+        - 目录：`${FILE%/*}` → /opt/app
+        - 去掉 .jar：`${FILE%.jar}` → /opt/app/app-1.0.0
+        - 版本号：`${FILE##*-}` 配合 `${FILE%.jar}` 可得 1.0.0
+- `${VAR}` vs `$VAR`：
+    - 当变量后紧跟字母、数字或下划线时，`$VAR_suffix` 会被解析为变量名 `VAR_suffix`，导致歧义。
+    - 使用 `${VAR}_suffix` 明确变量边界。
+- 追问：
+    - `${VAR:-default}` 仅返回默认值不修改 VAR；`${VAR:=default}` 会同时给 VAR 赋值。
+    - 判断空或仅空格：`if [[ -z "${VAR// /}" ]]; then echo "空或仅空格"; fi`（删除所有空格后判断长度）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Shell 数组（索引数组与关联数组）的使用及与 Java 数组的对比
+> 在批量处理多个服务或配置项时，Shell 数组非常实用。请回答：
+> 1. 如何定义索引数组和关联数组？如何获取数组长度、遍历数组、访问单个元素？`${arr[@]}` 与 `${arr[*]}` 有何区别？
+> 2. 关联数组（`declare -A`）的键可以是任意字符串吗？如何判断某个键是否存在？如何删除数组元素？
+> 3. Shell 数组与 Java 数组在内存模型、长度可变性、类型约束上有何本质区别？在部署脚本中，如何用数组管理多个 Spring Boot 服务的启动与停止？
+     > 追问：`for i in "${arr[@]}"` 与 `for i in ${arr[@]}` 有何区别？当数组元素包含空格时，哪种写法更安全？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 数组定义与操作：
+    - 索引数组：`arr=("a" "b" "c")`，`arr[0]="x"`。
+    - 关联数组：`declare -A map`，`map[key1]="value1"`。
+    - 长度：`${#arr[@]}`。
+    - 访问：`${arr[0]}`，`${map[key1]}`。
+    - 遍历：`for item in "${arr[@]}"; do ...; done`。
+- `${arr[@]}` vs `${arr[*]}`：
+    - `"${arr[@]}"`：展开为独立元素列表，每个元素独立引号包裹。
+    - `"${arr[*]}"`：展开为单个字符串，元素间以 IFS 分隔。
+    - 推荐使用 `"${arr[@]}"`，保留元素边界。
+- 关联数组：
+    - 键可为任意非空字符串（Bash 4.0+）。
+    - 判断键存在：`[[ -v map[key] ]]`（Bash 4.2+）或 `[[ -n "${map[key]+x}" ]]`。
+    - 删除元素：`unset arr[1]`，`unset map[key1]`。
+- 与 Java 数组对比：
+    - Shell 数组长度可变（动态），元素类型无约束（均为字符串），无越界检查（访问不存在元素返回空）。
+    - Java 数组长度固定，类型强约束，越界抛异常。
+- 部署脚本示例：
+  SERVICES=("user-service" "order-service" "pay-service")
+  for svc in "${SERVICES[@]}"; do
+  nohup java -jar "$svc.jar" > "$svc.log" 2>&1 &
+  done
+- 追问：
+    - `for i in "${arr[@]}"`：每个元素独立，含空格的元素保持完整。
+    - `for i in ${arr[@]}`：按 IFS 分词，含空格的元素会被拆开。推荐前者。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：Shell 常用内置命令（read、printf、declare、eval、trap）在部署脚本中的综合应用
+> 请回答以下内置命令的用途与典型场景：
+> 1. `read` 如何从标准输入或文件读取数据？`read -p`、`read -s`、`read -r` 分别有什么作用？如何读取一行并按分隔符拆分为多个变量？
+> 2. `printf` 与 `echo` 有何区别？为什么 `printf` 更适合格式化输出？`declare` 的 `-i`、`-a`、`-A`、`-r` 选项分别声明什么类型的变量？
+> 3. `eval` 的作用是什么？为什么使用 `eval` 存在安全风险（如命令注入）？`trap` 如何在脚本退出或收到信号时执行清理操作（如删除临时文件、停止子进程）？
+     > 追问：`exec` 命令在脚本中如何使用？`exec java -jar app.jar` 与直接 `java -jar app.jar` 有何区别？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- read：
+    - `read var`：读取一行到 var。
+    - `read -p "提示：" var`：带提示。
+    - `read -s var`：隐藏输入（密码）。
+    - `read -r var`：禁止反斜杠转义（读取原始内容）。
+    - `IFS=',' read -r a b c`：按逗号分隔读取到多个变量。
+- printf vs echo：
+    - `echo` 简单输出，不同 Shell 行为不一致（如 `-n`、`-e` 兼容性差）。
+    - `printf` 支持格式化（`%s`、`%d`、`\n`），行为一致，适合跨平台脚本。
+- declare：
+    - `-i`：整数。
+    - `-a`：索引数组。
+    - `-A`：关联数组。
+    - `-r`：只读。
+- eval：
+    - 将字符串作为命令执行，如 `eval "cmd_$i"`。
+    - 风险：若字符串包含用户输入，可能被注入恶意命令。
+    - 避免使用，或用 `printf -v` 替代动态变量赋值。
+- trap：
+    - `trap 'rm -f $TMP_FILE' EXIT`：脚本退出时删除临时文件。
+    - `trap 'kill $PID' SIGTERM SIGINT`：收到信号时停止子进程。
+    - 常见信号：EXIT、ERR、SIGINT、SIGTERM。
+- exec：
+    - `exec command`：用 command 替换当前 Shell 进程（PID 不变）。
+    - `exec java -jar app.jar`：Java 进程直接替换脚本进程，信号（如 SIGTERM）可直接传给 Java，便于优雅停机。
+    - 直接 `java -jar`：脚本继续运行，Java 作为子进程，信号需手动转发。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 6 (2026-09-28) —— Shell 流程控制与内置命令
+
+### 题目1：Shell 条件判断 `[ ]`、`[[ ]]`、`test` 与 `(( ))` 的区别及部署脚本实战
+> 在编写 Java 应用启动脚本时，经常需要判断文件是否存在、进程是否运行、端口是否被占用。请回答：
+> 1. `[ ]`、`[[ ]]`、`test` 三者在语法和功能上有何区别？`[[ ]]` 支持哪些 `[ ]` 不具备的特性（如正则匹配 `=~`、模式匹配、逻辑运算符 `&&`/`||`）？
+> 2. 数值比较、字符串比较、文件测试分别使用哪些运算符？请写出判断“文件存在且可读”和“进程未运行”的表达式。
+> 3. `(( ))` 与 `[ ]` 在算术运算和条件判断上有何不同？为什么推荐在数值比较时使用 `(( ))`？
+     > 追问：`[ $a == $b ]` 在变量为空时可能报什么错？如何避免？`[[ ]]` 是否解决了这个问题？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- `[ ]` vs `[[ ]]` vs `test`：
+    - `test` 和 `[ ]` 等价，是 POSIX 标准，功能有限，需对变量加引号防止分词和空值报错。
+    - `[[ ]]` 是 Bash 关键字，支持 `=~` 正则、`==` 模式匹配、`&&`/`||` 逻辑运算，且不会对变量进行分词和通配符扩展，更安全。
+- 常用运算符：
+    - 数值：`-eq`、`-ne`、`-gt`、`-ge`、`-lt`、`-le`。
+    - 字符串：`=`、`!=`、`-z`（空）、`-n`（非空）。
+    - 文件：`-e`（存在）、`-f`（普通文件）、`-d`（目录）、`-r`（可读）、`-w`（可写）、`-x`（可执行）。
+    - 进程判断：`pgrep -f app.jar > /dev/null` 或 `ps -ef | grep -v grep | grep app.jar`。
+    - 端口判断：`ss -tunlp | grep :8080` 或 `netstat -tunlp | grep :8080`。
+- `(( ))` 与 `[ ]`：
+    - `(( ))` 专用于整数算术运算和比较，支持 `+ - * / % **`、`++`、`--`、三元运算符，语法更接近 C。
+    - `[ ]` 数值比较需用 `-eq` 等，且不支持算术表达式直接求值。
+    - 推荐：`if (( a > b )); then ...; fi`
+- 追问：
+    - `[ $a == $b ]` 若 `$a` 为空，会变成 `[ == b ]`，报 `unary operator expected` 或 `too many arguments`。
+    - 避免：加引号 `[ "$a" == "$b" ]`，或使用 `[[ $a == $b ]]`（`[[ ]]` 内部不会分词，空变量也安全）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Shell 循环（for、while、until）在 Java 批量服务启停脚本中的应用
+> 在微服务部署中，常需要批量启动或停止多个 Spring Boot 服务。请回答：
+> 1. `for`、`while`、`until` 三种循环的语法和适用场景分别是什么？`break`、`continue`、`break n` 的作用是什么？
+> 2. 如何用 `while read line` 逐行读取文件？与 `for line in $(cat file)` 相比有何优势？当文件行含空格时，哪种方式更安全？
+> 3. 请设计一个脚本片段，遍历服务名数组，检查每个服务是否在运行，若未运行则启动，并输出状态。要求使用 `for` 循环和条件判断。
+     > 追问：`while` 循环中若在管道内修改外部变量，为什么变量值不会保留？如何解决（使用进程替换 `< <(...)` 或 `while read` 配合重定向）？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 循环语法：
+    - `for var in list; do ...; done`：遍历列表，适合已知集合。
+    - `while condition; do ...; done`：条件为真时循环，适合不确定次数。
+    - `until condition; do ...; done`：条件为假时循环，与 while 相反。
+    - `break` 跳出当前循环，`continue` 跳过本次进入下一次，`break n` 跳出 n 层循环。
+- `while read line` vs `for line in $(cat file)`：
+    - `for line in $(cat file)`：按 IFS 分词，行中含空格会被拆分，且一次性加载整个文件到内存。
+    - `while IFS= read -r line`：逐行读取，保留空格和特殊字符，内存友好。推荐。
+- 批量服务启停示例：
+  SERVICES=("user-service" "order-service" "pay-service")
+  for svc in "${SERVICES[@]}"; do
+  if pgrep -f "$svc.jar" > /dev/null; then
+  echo "$svc 正在运行"
+  else
+  echo "$svc 未运行，启动中..."
+  nohup java -jar "$svc.jar" > "$svc.log" 2>&1 &
+  fi
+  done
+- 追问（管道内变量丢失）：
+    - `cat file | while read line; do count=$((count+1)); done; echo $count` 输出为空。
+    - 原因：管道会创建子 Shell，循环在子 Shell 中执行，变量修改不影响父 Shell。
+    - 解决：使用进程替换 `while read line; do ...; done < <(cat file)`，或使用 `while read line; do ...; done < file`（重定向，非管道）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：`case` 语句与 `getopts` 解析命令行参数，编写标准 start/stop/restart/status 脚本
+> 在 Java 后端部署中，标准的启动脚本通常支持 `start`、`stop`、`restart`、`status` 参数。请回答：
+> 1. `case` 语句的语法是什么？与 `if-elif` 相比有何优势？请写出根据 `$1` 判断 start/stop/restart/status 的 `case` 结构。
+> 2. `getopts` 如何解析带选项的参数（如 `-p 8080 -e prod`）？`OPTARG` 和 `OPTIND` 的含义是什么？如何处理未知选项？
+> 3. 如何结合 `case` 与 `getopts`，编写一个支持 `-p` 指定端口、`-e` 指定环境、并执行 start/stop 的脚本框架？
+     > 追问：`getopts` 与 `getopt` 有何区别？为什么 `getopts` 不支持长选项（如 `--port`）？若需支持长选项，应如何实现？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- `case` 语法：
+  case "$1" in
+  start)
+  echo "启动服务"
+  ;;
+  stop)
+  echo "停止服务"
+  ;;
+  restart)
+  echo "重启服务"
+  ;;
+  status)
+  echo "查看状态"
+  ;;
+  *)
+  echo "用法: $0 {start|stop|restart|status}"
+  exit 1
+  ;;
+  esac
+    - 优势：多分支匹配更清晰，支持模式匹配（如 `start|run)`），比多层 if-elif 更易读。
+- `getopts`：
+    - 语法：`while getopts ":p:e:" opt; do ... done`
+    - 前导冒号表示静默模式（不打印错误），选项后冒号表示该选项需要参数。
+    - `$opt` 为当前选项，`$OPTARG` 为选项参数值，`$OPTIND` 为下一个参数索引。
+    - 未知选项：`?` 分支处理。
+- 综合脚本框架：
+  PORT=8080
+  ENV=dev
+  while getopts ":p:e:" opt; do
+  case $opt in
+  p) PORT=$OPTARG ;;
+  e) ENV=$OPTARG ;;
+  \?) echo "未知选项: -$OPTARG"; exit 1 ;;
+  :) echo "选项 -$OPTARG 需要参数"; exit 1 ;;
+  esac
+  done
+  shift $((OPTIND-1))
+  ACTION=$1
+  case "$ACTION" in
+  start) java -jar app.jar --server.port=$PORT --spring.profiles.active=$ENV & ;;
+  stop) pkill -f app.jar ;;
+  restart) pkill -f app.jar; sleep 2; java -jar app.jar --server.port=$PORT --spring.profiles.active=$ENV & ;;
+  *) echo "用法: $0 [-p 端口] [-e 环境] {start|stop|restart}"; exit 1 ;;
+  esac
+- 追问：
+    - `getopts` 是 Bash 内置，支持短选项，自动处理 `-p 8080` 和 `-p8080`。
+    - `getopt` 是外部命令，支持长选项，但可移植性差。
+    - `getopts` 不支持长选项。若需 `--port`，可手动解析 `$@`，或使用 `getopt -o p:e: -l port:,env: -- "$@"`。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 7 (2026-09-29) —— cut、sed、sort、uniq 文本处理实战
+
+### 题目1：使用 cut + sort + uniq 统计 Nginx 日志中访问量 Top 10 的 IP
+> 现有 Nginx 访问日志 `access.log`，每行格式为：
+> `192.168.1.1 - - [29/Sep/2026:10:00:00 +0800] "GET /api/user HTTP/1.1" 200 1024`
+> 请写出完整的命令链，提取所有客户端 IP，统计每个 IP 的访问次数，并按访问量降序显示前 10 名。
+> 追问：cut 命令的 `-d` 和 `-f` 分别是什么含义？如果日志字段之间是多个空格而不是单个空格，cut 能否正确处理？若不能，应改用哪个命令？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 完整命令链：
+  awk '{print $1}' access.log | sort | uniq -c | sort -nr | head -10
+  或者使用 cut（若字段以单空格分隔）：
+  cut -d' ' -f1 access.log | sort | uniq -c | sort -nr | head -10
+
+- 命令解释：
+    - cut -d' ' -f1：以空格为分隔符，提取第 1 个字段（IP）。
+    - sort：将 IP 按字典序排序，使相同 IP 相邻，便于 uniq 去重。
+    - uniq -c：统计相邻重复行出现的次数，输出格式为“次数 IP”。
+    - sort -nr：按数值降序排序（-n 数值排序，-r 逆序）。
+    - head -10：取前 10 行。
+
+- 追问：
+    - cut 的 -d 指定分隔符，-f 指定提取的字段编号（从 1 开始），可指定多个字段如 -f1,3。
+    - cut 只能处理“单个字符”作为分隔符，且不会将连续多个空格视为一个分隔符。对于多个空格的情况，cut 会提取出空字段，导致结果错误。
+    - 多空格场景应使用 awk：awk '{print $1}' 自动按任意空白字符（空格、制表符）分割，并忽略连续空白。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：sed 命令在 Java 日志脱敏与清洗中的实战（替换、删除、行范围）
+> 在排查线上问题时，常需要从日志中提取信息并脱敏。请回答：
+> 1. 如何用 sed 将日志中所有手机号（11 位数字）替换为 `****`？如何仅替换每行第一次出现的匹配？
+> 2. 如何用 sed 删除所有空行？如何删除包含 `DEBUG` 字样的行？如何删除第 5 行到第 10 行？
+> 3. `sed -i` 直接修改原文件有什么风险？如何先预览再修改？在 Java 后端脚本中，如何安全地使用 sed 修改配置文件（如替换 application.yml 中的端口号）？
+     > 追问：sed 的 `-E` 与 `-r` 有何区别？`sed 's/old/new/g'` 中的 `g` 和 `p` 标志分别是什么含义？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 手机号脱敏：
+  sed -E 's/1[3-9][0-9]{9}/****/g' app.log
+  仅替换每行第一次：
+  sed -E 's/1[3-9][0-9]{9}/****/' app.log
+
+- 删除操作：
+    - 删除空行：sed '/^$/d' app.log
+    - 删除含 DEBUG 的行：sed '/DEBUG/d' app.log
+    - 删除第 5 到第 10 行：sed '5,10d' app.log
+
+- sed -i 风险：
+    - 直接修改原文件，若命令写错可能导致数据无法恢复。
+    - 安全做法：先不加 -i 预览输出，确认无误后再加 -i；或使用 -i.bak 备份原文件。
+    - 修改配置文件示例：
+      sed -i.bak 's/server.port: 8080/server.port: 9090/' application.yml
+
+- 追问：
+    - -E 和 -r 在 GNU sed 中等价，都表示使用扩展正则表达式（支持 +、?、|、() 等）。POSIX 标准用 -E，GNU sed 两者都支持。
+    - g 表示全局替换（一行内所有匹配），不加 g 只替换第一个。p 通常与 -n 配合使用，打印匹配行，如 sed -n '/ERROR/p' 只输出含 ERROR 的行。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：sort 多字段排序与 uniq 统计——分析 Java 接口耗时 Top N
+> 现有应用日志 `api.log`，每行格式为：
+> `2026-09-29 10:00:00 | /api/order | 320ms | 200`
+> 字段以 ` | ` 分隔。请回答：
+> 1. 如何用 sort 按耗时（第 3 个字段，数值）降序排列，显示耗时最高的 10 条请求？请说明 `-t`、`-k`、`-n`、`-r` 参数的作用。
+> 2. 如何统计每个接口（第 2 个字段）的调用次数，并按次数降序排列？若接口名包含空格，cut 和 awk 应如何选择？
+> 3. uniq 的 `-c`、`-d`、`-u` 分别是什么含义？uniq 为什么必须先 sort？若数据未排序直接 uniq 会发生什么？
+     > 追问：如何统计状态码非 200 的请求中，各接口的异常次数？请写出命令链。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 按耗时降序取 Top 10：
+  sort -t'|' -k3 -nr api.log | head -10
+  注意：第 3 字段实际为 ` 320ms`，含单位 ms，需先去掉 ms 才能数值排序。正确做法：
+  awk -F' \\| ' '{gsub(/ms/,"",$3); print $3, $0}' api.log | sort -nr | head -10
+  或先提取耗时：
+  awk -F' \\| ' '{print $3+0, $0}' api.log | sort -nr | head -10
+
+- 参数说明：
+    - -t'|'：指定字段分隔符为竖线（但实际有空格，需用 -t'|' 配合处理）。
+    - -k3：按第 3 个字段排序。
+    - -n：按数值排序（否则按字典序，"1000" 会排在 "200" 前面）。
+    - -r：降序。
+
+- 统计接口调用次数：
+  awk -F' \\| ' '{print $2}' api.log | sort | uniq -c | sort -nr
+  若接口名含空格，cut 无法正确处理（cut 只支持单字符分隔且不忽略连续空格），必须用 awk。
+
+- uniq 选项：
+    - -c：统计每行出现次数。
+    - -d：仅显示重复行。
+    - -u：仅显示不重复的行。
+    - uniq 只能处理相邻重复行，因此必须先 sort 使相同内容相邻。若未排序，相同内容可能分散，uniq 无法正确统计。
+
+- 追问：统计非 200 请求中各接口异常次数：
+  awk -F' \\| ' '$4 != 200 {print $2}' api.log | sort | uniq -c | sort -nr
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 8 (2026-09-30) —— Shell 脚本综合实战与调试
+
+### 题目1：Shell 函数的定义、参数传递与返回值，以及在 Java 服务启停中的复用
+> 在编写部署脚本时，常将公共逻辑封装为函数。请回答：
+> 1. Shell 函数如何定义？如何传递参数（$1、$@）？函数的返回值有哪两种方式？return 和 echo 有何本质区别？
+> 2. 如何让函数返回字符串或复杂数据？为什么不能直接用 return 返回字符串？如何通过命令替换获取函数输出？
+> 3. 请编写一个函数 check_service，接收服务名作为参数，判断该服务是否在运行，返回 0 表示运行中，1 表示未运行。并在主流程中调用该函数，根据结果决定是否启动服务。
+     > 追问：函数内如何声明局部变量？local 关键字与直接赋值有何区别？若函数内修改了同名全局变量，外部会受影响吗？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 函数定义与参数：
+  check_service() {
+  local svc_name=$1
+  if pgrep -f "$svc_name.jar" > /dev/null; then
+  return 0
+  else
+  return 1
+  fi
+  }
+    - 函数内 $1、$@、$# 与脚本参数类似，但属于函数自身的参数。
+- 返回值方式：
+    - return：返回 0~255 的整数状态码，通常用于表示成功/失败。0 成功，非 0 失败。
+    - echo：输出字符串到标准输出，调用者用 $(function_name) 捕获。
+    - 本质区别：return 是退出函数并返回状态码，echo 是输出数据。不能直接 return 字符串（会报错：numeric argument required）。
+- 获取函数输出：
+  get_version() {
+  echo "1.0.0"
+  }
+  VERSION=$(get_version)
+- check_service 完整示例：
+  check_service() {
+  local svc_name=$1
+  if pgrep -f "${svc_name}.jar" > /dev/null; then
+  echo "${svc_name} 正在运行"
+  return 0
+  else
+  echo "${svc_name} 未运行"
+  return 1
+  fi
+  }
+  主流程：
+  if check_service "user-service"; then
+  echo "无需启动"
+  else
+  nohup java -jar user-service.jar &
+  fi
+- 追问：
+    - local 声明局部变量，作用域仅限函数内，函数退出后销毁。直接赋值则默认为全局变量，会影响外部同名变量。
+    - 若函数内修改全局变量，外部会受影响（因为 Shell 变量默认全局）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Shell 脚本调试与健壮性：set -e、set -u、set -x、set -o pipefail 的区别与生产实践
+> 在生产环境部署脚本中，一个未捕获的错误可能导致服务状态不一致。请回答：
+> 1. set -e、set -u、set -x、set -o pipefail 分别是什么含义？它们如何提升脚本的健壮性？
+> 2. set -e 有哪些“失效”场景（如命令在 if 条件中、在 && 或 || 中、在管道中非最后命令）？如何避免？
+> 3. 请写一个脚本头部的最佳实践模板，包含常用的 set 选项、trap 清理、日志输出重定向。如何在不修改脚本的情况下临时调试（bash -x script.sh）？
+     > 追问：set -e 与 trap 'echo error' ERR 如何配合使用？trap 捕获 ERR 时如何获取出错行号和命令？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- set 选项含义：
+    - set -e：命令返回非 0 时立即退出脚本（但某些上下文除外）。
+    - set -u：使用未定义变量时报错并退出。
+    - set -x：打印每条执行的命令及其参数（调试用）。
+    - set -o pipefail：管道中任一命令失败，整个管道返回失败（默认只返回最后一个命令的状态）。
+- set -e 失效场景：
+    - 命令在 if、while、until 条件中：if false; then ...; fi 不会退出。
+    - 命令在 && 或 || 中：false || true 不会退出。
+    - 管道中非最后一个命令：cmd1 | cmd2，cmd1 失败不会退出（除非开启 pipefail）。
+    - 命令前有 !：! false 不会退出。
+    - 函数内命令失败，但函数调用在条件中。
+- 最佳实践模板：
+  #!/bin/bash
+  set -euo pipefail
+  LOG_FILE="/var/log/deploy.log"
+  exec >> "$LOG_FILE" 2>&1
+  trap 'echo "[ERROR] 脚本在第 $LINENO 行失败，命令: $BASH_COMMAND"' ERR
+  # 业务逻辑
+- 临时调试：bash -x script.sh 或 set -x 局部开启。
+- 追问：
+    - trap '...' ERR 在命令返回非 0 时触发（类似 set -e 但可自定义处理）。
+    - 获取行号：$LINENO；获取命令：$BASH_COMMAND。
+    - 注意：trap ERR 也会受 set -e 失效场景影响，需结合 set -E（使 trap 继承到子 Shell 和函数）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：综合实战——编写一个 Spring Boot 自动化部署脚本（含备份、启停、健康检查、回滚）
+> 请设计一个部署脚本 deploy.sh，接收两个参数：服务名（如 user-service）和版本号（如 1.0.0）。要求实现：
+> 1. 从 /opt/releases/${服务名}/${版本号}/ 目录下获取 app.jar，若不存在则报错退出。
+> 2. 将当前运行中的服务停止（优雅停机：先 kill -15，等待 10 秒，若仍存在则 kill -9）。
+> 3. 备份旧版本 jar 到 /opt/backup/${服务名}/ 下，以时间戳命名。
+> 4. 将新 jar 复制到 /opt/apps/${服务名}/app.jar。
+> 5. 启动新服务，重定向日志到 /opt/logs/${服务名}.log。
+> 6. 等待 15 秒后，检查进程是否存在且端口是否监听（如 8080）。若健康检查失败，则用备份回滚，并重启旧版本。
+     > 请写出完整脚本框架，并说明关键步骤的设计理由。追问：如何保证脚本重复执行时不产生副作用（幂等性）？回滚时如何确保旧版本能正常启动？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 脚本框架（关键部分，完整脚本需补充错误处理）：
+  #!/bin/bash
+  set -euo pipefail
+  SERVICE=$1
+  VERSION=$2
+  APP_DIR="/opt/apps/${SERVICE}"
+  RELEASE_DIR="/opt/releases/${SERVICE}/${VERSION}"
+  BACKUP_DIR="/opt/backup/${SERVICE}"
+  LOG_DIR="/opt/logs"
+  PORT=8080
+  # 1. 检查发布包
+  if [[ ! -f "${RELEASE_DIR}/app.jar" ]]; then
+  echo "发布包不存在: ${RELEASE_DIR}/app.jar"
+  exit 1
+  fi
+  # 2. 停止旧服务（优雅停机）
+  PID=$(pgrep -f "${SERVICE}.jar" || true)
+  if [[ -n "$PID" ]]; then
+  kill -15 "$PID"
+  for i in {1..10}; do
+  if ! kill -0 "$PID" 2>/dev/null; then break; fi
+  sleep 1
+  done
+  if kill -0 "$PID" 2>/dev/null; then
+  kill -9 "$PID"
+  fi
+  fi
+  # 3. 备份旧版本
+  mkdir -p "$BACKUP_DIR"
+  if [[ -f "${APP_DIR}/app.jar" ]]; then
+  cp "${APP_DIR}/app.jar" "${BACKUP_DIR}/app-$(date +%Y%m%d%H%M%S).jar"
+  fi
+  # 4. 部署新版本
+  cp "${RELEASE_DIR}/app.jar" "${APP_DIR}/app.jar"
+  # 5. 启动新服务
+  nohup java -jar "${APP_DIR}/app.jar" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+  # 6. 健康检查与回滚
+  sleep 15
+  if ! pgrep -f "${SERVICE}.jar" > /dev/null || ! ss -tunlp | grep -q ":${PORT}"; then
+  echo "健康检查失败，回滚..."
+  # 停止可能启动失败的进程
+  pkill -f "${SERVICE}.jar" || true
+  # 恢复最新备份
+  LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/*.jar | head -1)
+  cp "$LATEST_BACKUP" "${APP_DIR}/app.jar"
+  nohup java -jar "${APP_DIR}/app.jar" > "${LOG_DIR}/${SERVICE}.log" 2>&1 &
+  echo "已回滚并重启旧版本"
+  exit 1
+  fi
+  echo "部署成功: ${SERVICE} ${VERSION}"
+- 设计理由：
+    - set -euo pipefail 保证任何错误立即暴露。
+    - 优雅停机避免强制 kill 导致数据丢失或端口未释放。
+    - 时间戳备份保留历史版本，便于回滚。
+    - 健康检查超时后回滚，保证可用性。
+- 追问（幂等性）：
+    - 脚本执行前检查进程是否已存在，若已运行且版本相同可跳过；备份时若文件已存在可覆盖或跳过。
+    - 回滚时确保备份文件完整，启动参数与旧版本一致（如端口、JVM 参数），必要时在备份时记录启动命令或元数据。
 </details>
 
 **我的初答**：
