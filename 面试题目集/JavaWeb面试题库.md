@@ -130,3 +130,108 @@
 **错漏点**：
 
 ---
+
+## Day 10 (2026-10-03) —— Web基础与Spring Boot Web入门
+
+### 题目1：HTTP协议核心、状态码与RESTful接口设计
+> 请简述HTTP协议中GET与POST的核心区别（至少4点），并说明常见HTTP状态码200、301、302、400、401、403、404、500的含义。在Spring Boot中设计RESTful接口时，如何用@GetMapping、@PostMapping、@PutMapping、@DeleteMapping对应CRUD？追问：HTTP是无状态协议，Spring Boot中如何保持用户登录状态？Session和Token（JWT）方案有何区别？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- GET vs POST核心区别：
+  1. 语义：GET用于获取资源，POST用于提交数据。
+  2. 参数位置：GET参数在URL查询字符串中，POST参数在请求体中。
+  3. 幂等性：GET是幂等的（多次请求结果相同），POST通常不是幂等的。
+  4. 缓存：GET可被浏览器缓存，POST默认不缓存。
+  5. 安全性：两者都不安全，敏感数据必须用HTTPS。
+- 常见状态码：
+  - 200 OK：请求成功。
+  - 301 Moved Permanently：永久重定向。
+  - 302 Found：临时重定向。
+  - 400 Bad Request：请求参数错误。
+  - 401 Unauthorized：未认证。
+  - 403 Forbidden：已认证但无权限。
+  - 404 Not Found：资源不存在。
+  - 500 Internal Server Error：服务器内部错误。
+- RESTful CRUD对应：
+  - GET /users：查询用户列表。
+  - GET /users/{id}：查询单个用户。
+  - POST /users：新增用户。
+  - PUT /users/{id}：全量更新用户。
+  - PATCH /users/{id}：部分更新用户。
+  - DELETE /users/{id}：删除用户。
+- 无状态与登录保持：
+  - Session方案：服务端存储Session，客户端通过Cookie携带SessionId。集群环境需Session共享（如Redis）。
+  - JWT方案：客户端存储Token，服务端不保存状态。适合分布式、跨域，但无法主动失效（需黑名单或短过期+刷新Token）。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：Spring Boot Web 参数绑定注解与JSON处理
+> 请说明@Controller与@RestController的区别。在Spring Boot中，如何分别接收以下请求参数：
+> 1. URL查询参数 ?name=张三&age=20
+> 2. 路径参数 /users/100
+> 3. JSON请求体 {"name":"张三","age":20}
+> 4. 请求头 User-Agent
+     > 请写出对应注解，并说明@RequestParam的required和defaultValue属性的作用。追问：@RequestBody和@RequestParam能同时使用吗？日期类型参数如何接收（@DateTimeFormat / @JsonFormat）？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- @Controller vs @RestController：
+  - @Controller：返回视图名称，通常配合视图解析器（如Thymeleaf、JSP）。
+  - @RestController：等于@Controller + @ResponseBody，所有方法返回JSON/XML数据，适合前后端分离。
+- 参数接收：
+  1. 查询参数：@RequestParam("name") String name，@RequestParam("age") Integer age。
+  2. 路径参数：@PathVariable("id") Long id，对应@GetMapping("/users/{id}")。
+  3. JSON请求体：@RequestBody User user，请求头Content-Type: application/json。
+  4. 请求头：@RequestHeader("User-Agent") String userAgent。
+- @RequestParam属性：
+  - required：默认true，参数缺失时抛MissingServletRequestParameterException。
+  - defaultValue：参数缺失时使用默认值，同时隐含required=false。
+- 追问：
+  - @RequestBody和@RequestParam可以同时使用，但@RequestBody只能有一个（请求体只能读一次）。
+  - 日期接收：
+    - GET查询参数：@DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate date。
+    - JSON请求体：@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8") LocalDateTime time。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：Spring Boot 内嵌Tomcat、Web自动配置与三层架构
+> 请说明spring-boot-starter-web起步依赖主要包含哪些内容？Spring Boot如何实现内嵌Tomcat的自动启动？如何修改内嵌Tomcat端口和上下文路径？在前后端分离项目中，Controller、Service、Mapper三层架构的职责分别是什么？追问：Spring Boot中DispatcherServlet如何被自动注册？为什么Spring Boot项目通常不需要web.xml？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- spring-boot-starter-web主要包含：
+  - spring-web、spring-webmvc：MVC核心。
+  - tomcat-embed-core、tomcat-embed-el：内嵌Tomcat。
+  - jackson-databind：JSON序列化/反序列化。
+  - spring-boot-starter-json、validation等。
+- 内嵌Tomcat自动启动：
+  - Spring Boot启动时，通过ServletWebServerFactoryAutoConfiguration创建TomcatServletWebServerFactory。
+  - 在refresh阶段，调用createWebServer()创建Tomcat实例，并启动。
+  - 无需手动部署WAR到外部Tomcat。
+- 修改配置：
+  - 端口：server.port=8081
+  - 上下文路径：server.servlet.context-path=/api
+  - 也可用application.yml配置。
+- 三层架构职责：
+  - Controller：接收请求、参数校验、调用Service、返回响应。
+  - Service：业务逻辑、事务控制、组装数据。
+  - Mapper/DAO：数据库访问，执行SQL。
+- 追问：
+  - DispatcherServlet由DispatcherServletAutoConfiguration自动注册，通过ServletRegistrationBean绑定到内嵌容器。
+  - 不需要web.xml因为Servlet 3.0+支持注解和ServletContainerInitializer，Spring Boot通过自动配置和Java Config替代了web.xml。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
