@@ -42,8 +42,111 @@
 </details>
 
 **我的初答**：
-**错漏点**：
+1. Maven的依赖范围主要有test,compile,provided,runtime,system;test主要适用于单元测试的场景,不会被打包进jar;其他的不了解
+2. 依赖传递机制: 当传入一个依赖时,这个依赖可能还依赖着其他的依赖,Maven会将这些依赖也一并传入.
+3. 最终会引入1.0版本的B,因为A是最先声明的且A和C对B的依赖路径一样长
+4. 通过<exclusions>标签可以指定要排除的依赖,只需要在<dependencies>内部用<exclusions>声明即可.
+5. 当出现循环依赖时若pom文件中已存在如B依赖的A,就直接复用该依赖,不会再引入新的依赖;排除和处理不了解
+6. dependencyManagement用于统一管理子项目的依赖,防止出现依赖冲突等情况,于dependencies的区别主要就是dependencies只负责管理本项目的依赖
 
+**错漏点**：
+<details>
+<summary><strong>点击展开错漏点</strong></summary>
+
+你的初答点评
+
+- **scope**：只答了 test，且"不会被打包"这点对。其余四个空白——provided 和 runtime 是部署题高频考点。
+
+- **依赖传递 + 调解**：**满分答案**，两条原则用得准确，结论正确（选 B 1.0）。
+
+- **exclusions**：描述太含糊（"通过标签……用声明"），面试里要能写出具体 XML 结构。
+
+- **循环依赖**：**答错了**。Maven 对项目级循环依赖不会"直接复用"，而是**直接构建失败报错**。你描述的"复用已有依赖"是 Maven 对**依赖图中重复节点**的处理（防止无限递归），不是对循环依赖的容忍。
+
+- **dependencyManagement**：说了"统一版本"，但没答出最关键的区别——**它只声明版本、不实际引入依赖**，子模块必须自己在 dependencies 里写 GAV（可省略 version）才会真正引入。
+
+
+---
+
+## 参考答案
+
+### 1. 六种 scope 及打包影响
+
+表格
+
+| scope | 编译期 | 测试期 | 运行期 | 打入最终包？ | 典型场景 |
+| --- | --- | --- | --- | --- | --- |
+| **compile**（默认） | ✔   | ✔   | ✔   | **会** | 绝大多数业务依赖，如 spring-core、fastjson |
+| **provided** | ✔   | ✔   | ✘   | **不会** | 运行环境已提供的 API：**servlet-api、lombok**——Tomcat 自带 servlet 包，打进去会类冲突 |
+| **runtime** | ✘   | ✔   | ✔   | **会** | 编译不需要、运行才需要：**JDBC 驱动**（mysql-connector）——代码面向 DriverManager 编程，编译期不引用驱动类 |
+| **test** | ✘   | ✔   | ✘   | **不会** | JUnit、Mockito，只在测试 classpath |
+| **system** | ✔   | ✔   | ✘   | 不会  | 本地指定 `systemPath` 的 jar（已废弃用法，**官方不推荐**，应安装到本地仓库代替） |
+
+答题主线：**scope 决定依赖出现在哪个 classpath（编译/测试/运行），进而决定是否打进包**。provided 和 test 不打包，compile 和 runtime 打包。
+
+### 2. 依赖传递与调解
+
+**传递机制**：你声明依赖 A 时，Maven 会读取 A 的 POM，把 A 的 compile/runtime 依赖递归拉进来，构成依赖树。（注意：scope 为 test/provided 的依赖**不传递**。）
+
+**两条调解原则**（你答对了，规范化表述）：
+
+1. **最短路径优先**：B(1.0) 路径是 `项目→A→B`（深度 2），B(2.0) 路径是 `项目→C→B`（深度 2）——深度相同，进入第二条；
+
+2. **第一声明优先（first declaration wins）**：POM 中先声明的 A 胜出，最终引入 **B 1.0**。
+
+
+若路径不同（如 B 2.0 是 `项目→B` 直接依赖，深度 1），则无论声明顺序都选 2.0。实战技巧：**想强制锁定版本，就在自己的 POM 里直接声明该依赖**（路径最短，必然生效）。
+
+### 3. 排除传递依赖
+
+xml复制
+
+```xml
+<dependency>
+    <groupId>com.example</groupId>
+    <artifactId>A</artifactId>
+    <version>1.0</version>
+    <exclusions>
+        <exclusion>
+            <!-- 只需 groupId + artifactId，不写 version -->
+            <groupId>com.example</groupId>
+            <artifactId>B</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+```
+
+典型场景：排除低版本有漏洞的依赖、排除冲突的日志实现（如排除 spring-boot 里的 logback 换 log4j2）。
+
+**循环依赖处理（纠正你的答案）：**
+
+- Maven 对**依赖图中的环**（A→B→A）不会无限递归，会按已访问节点去重；
+
+- 但**项目/模块级循环依赖**（模块 A 依赖模块 B、B 又依赖 A），Maven **直接构建失败**，报 `The projects in the reactor contain a cyclic reference`；
+
+- **排查**：`mvn dependency:tree` 看依赖树找冲突；循环依赖用 IDE（IDEA 的 Maven 面板）或 `mvn dependency:analyze`；
+
+- **解决**：本质是设计问题——**抽取公共模块 C**（A、B 共同依赖的部分下沉），或改用接口 + 依赖注入/事件机制解耦，而不是靠 Maven 技巧绕过。
+
+
+### 追问：dependencyManagement vs dependencies
+
+表格
+
+|     | dependencies | dependencyManagement |
+| --- | --- | --- |
+| 作用  | **实际引入**依赖到本项目及所有继承者 | **只锁定版本/scope，不引入任何依赖** |
+| 生效条件 | 声明即生效 | 子模块必须在 dependencies 中声明 GAV（version 可省略）才真正引入 |
+| 典型位置 | 任意 POM | 父 POM / BOM |
+
+**为什么父 POM 用它统一版本：**
+
+1. **版本集中管控**：20 个子模块的 mysql-connector 版本在父 POM 改一处即可，杜绝"各模块版本漂移"导致的冲突；
+
+2. **按需引入**：子模块声明什么才引入什么，避免父 POM 强制把依赖塞给所有模块（如果用 dependencies 写，所有子模块会被迫继承）；
+
+3. 这也是 **BOM（如 spring-boot-dependencies）的原理**——你 `import` 它的 dependencyManagement，只获得一整套兼容的版本表，依赖还是自己声明。
+</details>
 
 ### 题目2：JUnit 5 的核心注解、生命周期与参数化测试（Java 后端单元测试规范）
 > JUnit 5 是目前 Java 单元测试的主流框架。请回答：
@@ -229,6 +332,249 @@
 - 追问：
   - DispatcherServlet由DispatcherServletAutoConfiguration自动注册，通过ServletRegistrationBean绑定到内嵌容器。
   - 不需要web.xml因为Servlet 3.0+支持注解和ServletContainerInitializer，Spring Boot通过自动配置和Java Config替代了web.xml。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 11 (2026-10-04) —— 分层思想与 IoC（控制反转）
+
+### 题目1：三层架构的职责划分与依赖关系，为什么 Controller 不能直接调用 Mapper？
+> 在 Spring Boot Web 项目中，通常分为 Controller、Service、Mapper（DAO）三层。请回答：
+> 1. Controller 层、Service 层、Mapper 层各自的职责是什么？三层之间的调用关系是怎样的？为什么不能跨层调用（如 Controller 直接调 Mapper）？
+> 2. Service 层为什么通常定义为接口 + 实现类？直接写一个类不行吗？在 MyBatis-Plus 或 JPA 中，Service 接口还有必要吗？
+> 3. DTO、VO、Entity（PO）三种对象在三层架构中分别承担什么角色？为什么不能直接用 Entity 接收前端参数并返回给前端？
+     > 追问：如果 Controller 直接调用 Mapper，在小型项目中似乎也能跑，这种写法在什么情况下会出问题？请从可维护性、事务控制和代码复用的角度分析。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 三层职责与调用关系：
+  - Controller：接收 HTTP 请求、参数校验、调用 Service、封装响应。不写业务逻辑，不直接访问数据库。
+  - Service：业务逻辑的核心，负责事务控制、业务规则校验、调用多个 Mapper 组合数据。
+  - Mapper/DAO：只负责数据库访问，执行 SQL，返回 Entity。
+  - 调用关系：Controller → Service → Mapper，单向依赖，不可跨层。
+- 不能跨层的原因：
+  1. 业务逻辑散落：Controller 直接调 Mapper 会导致业务逻辑写在 Controller 中，难以复用（如定时任务也需要同样的逻辑）。
+  2. 事务控制困难：@Transactional 通常加在 Service 层，Controller 层加事务会导致事务范围过大或失效。
+  3. 可测试性差：Controller 依赖 Web 环境，单元测试复杂；Service 层可独立测试。
+- Service 接口 + 实现类：
+  - 面向接口编程，便于替换实现（如从 MySQL 换到 Redis 缓存）、AOP 代理（JDK 动态代理基于接口）。
+  - 小型项目或使用 MyBatis-Plus 的 IService 时，可直接写实现类，但接口仍是主流规范。
+- DTO/VO/Entity：
+  - DTO（Data Transfer Object）：接收前端参数，字段与前端请求对应。
+  - VO（View Object）：返回给前端的对象，可裁剪敏感字段。
+  - Entity（PO）：与数据库表一一对应，包含所有字段，不直接暴露给前端。
+  - 不能直接用 Entity 的原因：可能暴露敏感字段（如密码、手机号），且前端参数与数据库字段不一致时会导致校验混乱。
+- 追问：Controller 直接调 Mapper 在小型项目中短期可行，但一旦出现多端调用（App、小程序）、定时任务、事务嵌套、缓存需求，就会导致代码重复、事务失效、难以维护。分层是规范，不是束缚。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：IoC（控制反转）与 DI（依赖注入）的本质区别，以及 Spring 容器管理 Bean 的核心流程
+> Spring 的核心是 IoC 容器。请回答：
+> 1. 什么是 IoC（控制反转）？什么是 DI（依赖注入）？两者是什么关系？为什么说“IoC 是一种设计思想，DI 是它的实现方式”？
+> 2. Spring 容器管理 Bean 的核心流程是什么？从启动到 Bean 可用，经历了哪些阶段（扫描、实例化、属性注入、初始化、放入单例池）？
+> 3. Spring 提供了哪些依赖注入方式（构造器注入、Setter 注入、字段注入）？为什么 Spring 官方推荐构造器注入？字段注入（@Autowired 直接在字段上）有什么缺点？
+     > 追问：如果一个类没有加 @Component/@Service 等注解，Spring 能管理它吗？@Bean 注解和 @Component 有什么区别？分别在什么场景下使用？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- IoC 与 DI 的关系：
+  - IoC（Inversion of Control）：控制反转，是一种设计思想。对象的创建和依赖管理权从程序员手中反转给 Spring 容器。
+  - DI（Dependency Injection）：依赖注入，是 IoC 的具体实现方式。容器在创建对象时，自动将其依赖的对象注入进去。
+  - 关系：IoC 是目标，DI 是手段。Spring 通过 DI 实现 IoC。
+- Bean 管理核心流程：
+  1. 扫描：通过 @ComponentScan 扫描指定包下的类，识别 @Component、@Service、@Repository、@Controller 等注解。
+  2. 注册 BeanDefinition：将扫描到的类信息封装为 BeanDefinition，注册到容器。
+  3. 实例化：根据 BeanDefinition 通过反射创建对象（构造器）。
+  4. 属性注入：为对象的依赖字段/构造器/Setter 注入值（DI）。
+  5. 初始化：执行 @PostConstruct、InitializingBean.afterPropertiesSet()、init-method。
+  6. 放入单例池：将完成初始化的 Bean 放入 singletonObjects 缓存（单例 Bean）。
+  7. 使用：从容器中获取 Bean 并调用。
+  8. 销毁：容器关闭时，执行 @PreDestroy、DisposableBean.destroy()、destroy-method。
+- 注入方式对比：
+  - 构造器注入：Spring 官方推荐。保证依赖不可变（final）、不为 null、便于单元测试、避免循环依赖（构造器循环依赖会直接报错，暴露问题）。
+  - Setter 注入：适合可选依赖，但对象可能在注入前处于不完整状态。
+  - 字段注入（@Autowired 在字段上）：代码最简洁，但缺点明显：
+    1. 无法使用 final 修饰，依赖可变。
+    2. 单元测试时无法直接 new 对象并传入 Mock（需反射或 Spring 容器）。
+    3. 隐藏依赖关系，类可能有过多的 @Autowired 字段。
+    4. 容易导致循环依赖（Spring 通过三级缓存解决，但设计上应避免）。
+- 追问：
+  - 没有加 @Component 等注解的类，Spring 默认不管理。但可通过 @Bean 在 @Configuration 类中手动注册。
+  - @Bean：方法级别，适用于第三方类（无法修改源码加注解）、需要复杂初始化逻辑的 Bean。
+  - @Component：类级别，适用于自己编写的类，配合组件扫描自动注册。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：@Autowired 的注入原理与循环依赖的解决（三级缓存）
+> 在 Spring Boot 项目中，@Autowired 是最常用的注入注解。请回答：
+> 1. @Autowired 的注入规则是什么？它是按类型注入还是按名称注入？当存在多个同类型 Bean 时，Spring 如何处理？@Qualifier 和 @Primary 分别解决什么问题？
+> 2. 什么是循环依赖？Spring 如何通过三级缓存（singletonObjects、earlySingletonObjects、singletonFactories）解决单例 Bean 的循环依赖？请描述 A 依赖 B、B 依赖 A 的创建过程。
+> 3. 为什么构造器注入的循环依赖 Spring 无法解决？如果项目中出现了构造器循环依赖，应如何重构？
+     > 追问：@Resource 与 @Autowired 有什么区别？@Resource 是 JDK 提供的还是 Spring 提供的？它们的注入顺序有何不同？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- @Autowired 注入规则：
+  - 默认按类型（byType）注入。
+  - 若存在多个同类型 Bean，再按名称（byName）匹配（字段名或参数名）。
+  - 若仍无法确定，则抛出 NoUniqueBeanDefinitionException。
+  - 解决方案：
+    - @Qualifier("beanName")：指定注入的 Bean 名称。
+    - @Primary：标记某个 Bean 为首选，当存在多个同类型 Bean 时优先注入。
+- 循环依赖与三级缓存：
+  - 循环依赖：A 依赖 B，B 依赖 A。
+  - 三级缓存：
+    1. singletonObjects（一级）：成品 Bean。
+    2. earlySingletonObjects（二级）：半成品 Bean（已实例化但未完成属性注入）。
+    3. singletonFactories（三级）：Bean 工厂，用于生成代理对象（如 AOP）。
+  - 创建过程（A 依赖 B，B 依赖 A）：
+    1. 创建 A：实例化 A（调用构造器），将 A 的工厂放入三级缓存。
+    2. 注入 A 的属性：发现需要 B，于是创建 B。
+    3. 创建 B：实例化 B，将 B 的工厂放入三级缓存。
+    4. 注入 B 的属性：发现需要 A，从三级缓存中获取 A 的工厂，生成 A 的早期引用（放入二级缓存），注入给 B。
+    5. B 完成初始化，放入一级缓存。
+    6. A 继续注入 B（此时 B 已完成），A 完成初始化，放入一级缓存。
+- 构造器循环依赖无法解决：
+  - 构造器注入要求在实例化阶段就传入依赖，此时 Bean 尚未实例化，无法提前暴露引用，因此直接抛出 BeanCurrentlyInCreationException。
+  - 解决方案：
+    1. 使用 @Lazy 延迟注入（生成代理，实际使用时才创建）。
+    2. 改用 Setter/字段注入。
+    3. 重构代码，消除循环依赖（推荐）。
+- 追问：
+  - @Resource 是 JDK 提供的（JSR-250），@Autowired 是 Spring 提供的。
+  - @Resource 默认按名称（byName）注入，若名称找不到则按类型（byType）。
+  - @Autowired 默认按类型，可配合 @Qualifier 按名称。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
+
+## Day 12 (2026-10-05) —— JDBC 与 MyBatis 基础
+
+### 题目1：JDBC 六步操作流程、PreparedStatement 与事务控制
+> 请回答：
+> 1. JDBC 操作数据库的六步标准流程是什么？每一步的作用是什么？
+> 2. Statement 与 PreparedStatement 的区别是什么？为什么 PreparedStatement 能防止 SQL 注入？它的预编译机制在 MySQL 驱动中默认是否开启？
+> 3. JDBC 如何实现事务控制？为什么必须关闭自动提交（setAutoCommit(false)）？如果不关闭，可能出现什么问题？
+     > 追问：JDBC 中的事务和 Spring 的 @Transactional 有什么关系？为什么说 Spring 的事务管理器本质上是对 JDBC Connection 的封装？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 六步流程：
+  1. 加载驱动（Class.forName 或 SPI 自动加载，JDBC 4.0+ 可省略）。
+  2. 获取连接（DriverManager.getConnection 或 DataSource.getConnection）。
+  3. 创建 Statement/PreparedStatement。
+  4. 执行 SQL（executeQuery 返回 ResultSet，executeUpdate 返回影响行数）。
+  5. 处理结果集（遍历 ResultSet，映射为 Java 对象）。
+  6. 释放资源（关闭 ResultSet、Statement、Connection，推荐 try-with-resources）。
+- Statement vs PreparedStatement：
+  - Statement：SQL 拼接字符串，存在 SQL 注入风险，每次执行都需数据库解析。
+  - PreparedStatement：使用 ? 占位符，参数作为纯数据传递，不参与 SQL 语法解析，可防止注入。
+  - 预编译：MySQL 驱动默认 useServerPrepStmts=false，即客户端预编译（驱动内部拼接并转义），并非服务端预编译。
+- 事务控制：
+  - 默认 autoCommit=true，每条 SQL 自动提交。
+  - 手动事务：conn.setAutoCommit(false) → 执行多条 SQL → conn.commit() 或 conn.rollback()。
+  - 不关闭自动提交，无法回滚多条 SQL，也无法保证原子性。
+- 追问：
+  - Spring 的 @Transactional 底层通过 DataSourceTransactionManager 获取 Connection，设置 autoCommit=false，并在方法结束时 commit/rollback。
+  - Spring 通过 TransactionSynchronizationManager 将 Connection 绑定到 ThreadLocal，保证同一事务使用同一连接。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：MyBatis 核心组件与 Mapper 接口的动态代理机制
+> 请回答：
+> 1. MyBatis 的核心组件有哪些（SqlSessionFactory、SqlSession、Executor、MappedStatement、MapperProxy）？各自的作用是什么？
+> 2. Mapper 接口没有实现类，MyBatis 是如何调用到 XML 中的 SQL 的？请说明 MapperProxy 和 MapperMethod 的底层原理。
+> 3. MyBatis 中 #{} 和 ${} 的区别是什么？为什么 ${} 存在 SQL 注入风险？在什么场景下必须使用 ${}（如动态表名、排序字段）？如何安全使用？
+     > 追问：MyBatis 的一级缓存和二级缓存分别是什么？一级缓存为什么在 Spring 整合后可能失效？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 核心组件：
+  - SqlSessionFactory：全局单例，创建 SqlSession。
+  - SqlSession：一次会话，封装 Executor 和 Connection，线程不安全，用完即关。
+  - Executor：执行器，负责 SQL 执行和缓存管理（SimpleExecutor、ReuseExecutor、BatchExecutor）。
+  - MappedStatement：封装一条 SQL 的所有信息（SQL 语句、参数映射、结果映射）。
+  - MapperProxy：Mapper 接口的动态代理对象。
+- Mapper 动态代理：
+  - MyBatis 启动时，通过 MapperRegistry 注册 Mapper 接口。
+  - 调用 sqlSession.getMapper(UserMapper.class) 时，通过 JDK 动态代理生成 MapperProxy。
+  - 调用接口方法时，MapperProxy.invoke 拦截，根据方法全限定名（如 com.example.UserMapper.selectById）找到对应的 MappedStatement。
+  - 再通过 MapperMethod 执行 SQL 并映射结果。
+- #{} vs ${}：
+  - #{}：预编译占位符，生成 ?，参数通过 PreparedStatement 传入，防止注入。
+  - ${}：字符串拼接，直接替换 SQL，存在注入风险。
+  - 必须用 ${}：动态表名（FROM ${tableName}）、动态排序字段（ORDER BY ${column}）。
+  - 安全用法：对 ${} 参数进行白名单校验，避免直接使用用户输入。
+- 追问：
+  - 一级缓存：SqlSession 级别，默认开启，同一 SqlSession 中相同 SQL 复用结果。
+  - 二级缓存：Mapper 级别，需手动开启（cache 标签），跨 SqlSession 共享。
+  - Spring 整合后，一级缓存可能失效：因为 Spring 通过 SqlSessionTemplate 管理 SqlSession，每次查询可能获取新的 SqlSession（取决于事务范围），导致缓存不命中。同一事务内会复用 SqlSession。
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：MyBatis 参数传递、结果映射与动态 SQL
+> 请回答：
+> 1. MyBatis 中如何传递多个参数？@Param 注解的作用是什么？不写 @Param 时，多参数会如何处理（param1、param2 或 arg0、arg1）？
+> 2. resultType 和 resultMap 的区别是什么？当数据库字段名（如 user_name）与 Java 属性名（userName）不一致时，有哪几种解决方案（别名、mapUnderscoreToCamelCase、resultMap）？
+> 3. 动态 SQL 中 if、choose/when/otherwise、foreach、where、set、trim 标签分别解决什么问题？请写出一个使用 foreach 批量插入的示例。
+     > 追问：MyBatis 的 @MapperScan 和 @Mapper 有什么区别？为什么推荐使用 @MapperScan？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+- 参数传递：
+  - 单个参数：直接使用 #{name} 或 #{param1}。
+  - 多个参数：推荐使用 @Param("name") 指定名称，如 selectByNameAndAge(@Param("name") String name, @Param("age") Integer age)。
+  - 不写 @Param：MyBatis 会使用 arg0、arg1 或 param1、param2 作为参数名，可读性差，不推荐。
+  - 对象参数：直接使用属性名 #{userName}。
+- resultType vs resultMap：
+  - resultType：简单映射，要求数据库列名与 Java 属性名一致（或开启驼峰映射）。
+  - resultMap：自定义映射，处理复杂关系（一对一、一对多、多对多），指定 column 与 property 的对应关系。
+  - 字段名不一致解决方案：
+    1. SQL 别名：SELECT user_name AS userName FROM ...
+    2. 开启驼峰映射：mybatis.configuration.map-underscore-to-camel-case=true。
+    3. resultMap 显式映射。
+- 动态 SQL 标签：
+  - if：条件判断。
+  - choose/when/otherwise：多分支选择，类似 switch。
+  - foreach：遍历集合，常用于 IN 查询和批量插入。
+  - where：自动处理 WHERE 关键字和多余的 AND。
+  - set：自动处理 UPDATE 中的 SET 和多余的逗号。
+  - trim：自定义前后缀。
+  - 批量插入示例：
+    <insert id="batchInsert">
+    INSERT INTO user (name, age) VALUES
+    <foreach collection="list" item="item" separator=",">
+    (#{item.name}, #{item.age})
+    </foreach>
+    </insert>
+- 追问：
+  - @Mapper：标注在单个 Mapper 接口上，MyBatis 扫描时识别。
+  - @MapperScan：标注在启动类上，指定包路径，批量扫描该包下所有 Mapper 接口。
+  - 推荐 @MapperScan：避免在每个接口上重复写 @Mapper，且能统一配置。
 </details>
 
 **我的初答**：
