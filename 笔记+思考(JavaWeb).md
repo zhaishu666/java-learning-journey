@@ -257,4 +257,105 @@ XML 三原则（同包同名 / namespace=全限定名 / id+返回类型一致）
 
 **错漏点**
 
+## Day 76 (2026-10-6)
+### 今天复习了Collections.unmodifiableMap和Map.of()的区别,Redis为什么快;了解并学习了开发规范,Restful风格,数据封装,Nginx反向代理;写了LC701.
+> 创建不可变集合及Collections.unmodifiableMap和Map.of()的区别
+
+**我的回答**
+1. Java主要有这几种创建不可变集合的方式:Collections.unmodifiableMap,Map.of(),Map.copyOf(),Map.entries();
+2. 其中Collections.unmodifiableMap创建的并非完全不可变的集合,它只是创建了原map的一个不可变视图,修改该视图会抛出UnsupportedOperationException,但仍然可以通过原map,原map的修改会同步到视图中.
+3. Map.of()创建的是完全不可变的集合,任何修改操作都会抛出UnsupportedOperationException,但Map.of()最多只能存放10个键值对,要想创建更大的不可变集合应使用Map.entries()
+4. 如果想为现有的map创建不可变集合就使用Map.copyOf().
+
+**错漏点**
+
+**核心理解全对**：“unmodifiableMap 是视图不是真不可变、原 map 的修改会同步进视图、Map.copyOf 才是真拷贝”——视图 vs 快照这个关键区别你抓住了。**​但术语错了一处、出现两次**：
+
+> “Map.entries()”
+
+**没有这个方法。**​ 正确的是两个名字：`Map.entry(k, v)`（单数，造一个键值对）配 `Map.ofEntries(Map.entry(...), Map.entry(...), ...)`（超过 10 对时的写法）：
+
+java
+
+```java
+Map<String, Integer> m = Map.ofEntries(
+    Map.entry("a", 1),
+    Map.entry("b", 2)   // ... 想多少对多少对
+);
+```
+
+记忆钩子：`Map.of` 的参数重载到 10 对封顶 → 超了就 `ofEntries` + `entry` 拆开传。两个小补充：`Map.of` **不允许 null 键值**、重复键直接 `IllegalArgumentException`；`Map.copyOf` 遇到本来就是不可变的 Map 会直接返回原引用（不浪费一次拷贝）。
+
+> Redis为什么这么快?它的全部操作都是单线程吗?为什么不采用多线程的方式?生产中OPS突然从8万降到0,排查后发现是一个命令造成的,该命令可能是什么?生产中如何规范
+
+**我的回答**
+1. Redis快的原因主要体现在4个方面:
+- 纯内存操作,所有操作都在内存中进行,不受磁盘速度慢影响
+- IO多路复用(epoll): 一个线程同时监听多个socket,存在事件时才执行,不存在时不执行
+- 单线程无锁竞争与上下文开销
+- 采用高效的数据结构:跳表,渐进式rehash,zipList等结构
+2. Redis6.0时将网络IO操作改为支持多线程,但命令执行依旧是单线程模式;并且Redis还存在后台线程:AOF与磁盘持久化线程,异步删大key线程
+3. Redis的单线程CPU操作非常快,速度瓶颈主要在网络IO上;且Redis本身含有多种数据结构list/ZSet/map等,若采用多线程都要加锁,复杂度就大大提高了,得不偿失.
+4. 很有可能是KEYS,HGETALL,DEL这种执行时会阻塞线程的命令
+5. 实际开发应严格禁止使用遍历类命令;采用scan游标扫描或在删除时采用UNLINK异步删除.
+
+**错漏点**
+
+这是三天复习线里质量最高的一块。四原因（内存 / epoll 多路复用 / 单线程无锁无切换 / 高效结构）✓，Redis 6.0 网络 IO 多线程但命令执行单线程 ✓，后台线程（AOF fsync、异步删大 key）✓，为什么不多线程（瓶颈在网络不在 CPU、多数据结构加锁复杂度）✓——**尤其“OPS 8 万→0 是什么命令”这道生产排查题答满了**：KEYS / HGETALL / DEL 这类阻塞主线程的命令，治理方案 SCAN 游标 + UNLINK 异步删。这是面试官最爱的“场景反推题”，你已经能接住。
+
+三处小抠：①Redis 里的类型术语叫 **Hash**，不叫 map（和 Java 撞名了，面试注意切术语）；②“渐进式 rehash”是**扩容策略**不是数据结构——跳表/ziplist/listpack 才是结构；③治理清单再补一条：`FLUSHALL / FLUSHDB` 生产禁令，以及遍历家族的对应替换（`SMEMBERS → SSCAN`、`HGETALL → HSCAN`）。
+
+> 今天的规范风格学习,数据封装,什么时Nginx与反向代理.
+
+**我的回答**
+1. 当下主流的开发方式为前后端分离的方式并采用Restful风格进行构建: 它的特点是采用URL定位资源,并通过请求方式确定具体要进行哪种操作,而不是将操作名写入URL中;描述功能模块时通常采用复数形式表示该种模块
+2. 因为java代码的开发规范与SQL语句不同,当存在数据库字段名与实体类属性名不同时,会存在无法返回数据的情况,三种解决方式:
+- 手动结果映射: 通过@Results和@Result进行映射@Results({ @Result(column= "字段名", property = "属性名")...})
+- SQL起别名: 直接在SQL语句中给字段名起个跟属性名相同的别名
+- 开启驼峰命令: 前面两种方式都需要手动逐个配置,大任务下比较麻烦;在配置文件中配置:
+```
+mybatis:
+    configuration: 
+        map-underscore-to-camel-case: true
+```
+- 该配置会自动通过驼峰命名映射:(xxx_abc -> xxxAbc)
+3. Nginx是一款免费开源服务器,可以作为负载均衡器,反向代理服务器
+- 反向代理指的是通过代理服务器代替后端服务器接收客户端请求,并将请求转发给后端;也可以将后端的响应回复给客户端;这种方式可以防止后端服务器直接暴露在前端面前,也可以来确保负载均衡,将请求发送给压力小的服务器
+- server的作用:定义一个虚拟主机,由listen和server_name(域名)共同决定哪个站点接收请求
+- location: 定义URL路径匹配规则
+- proxy_pass: 将匹配到的请求转发到指定的后端
+
+**错漏点**
+
+Restful 三要素（URL 定位资源、请求方式定操作、复数命名）✓，字段名映射三方案（@Results 手动 / SQL 别名 / 驼峰开关）✓ 且指出了前两个“逐个配置麻烦”的代价，Nginx 的 server / location / proxy_pass 职责 ✓。三处精化 + 一个缺项：
+
+1. **“驼峰命令”→“驼峰命名”**（错别字级，但出现在配置项语义里就扎眼）。
+2. 负载均衡“将请求发送给压力小的服务器”——**默认策略是轮询**（round-robin），压力导向是 `least_conn` 这类显式配置的策略。面试说错默认值会掉分。
+3. 正反代理对比你只写了反向——上图就是补齐的对比，口诀一句话：**正向代理是客户端的替身（服务器不知真实客户端），反向代理是服务端的替身（客户端不知真实后端）**​。P79 联调场景里它还顺带解决了跨域：前端和接口同域（都是 Nginx 80），浏览器的同源策略根本不触发——这是“为什么前后端分离要配 Nginx”的完整答案。
+4. **缺项：Result 统一响应封装**（P78 的核心）。三层返回的是 `{code, message, data}` 统一格式：
+
+java
+
+```java
+public class Result {
+    private Integer code;   // 1 成功 0 失败（课程约定）
+    private String message;
+    private Object data;
+    // 静态工厂：Result.success(data) / Result.error(msg)
+}
+```
+
+![](img/javaWebImg/NginxAgent.svg)
+
+> LC701.二叉搜索树中的插入操作反思
+
+**我的回答**
+1. 刚来时将这题想复杂了,看了题解后知道只需要在符合二叉搜索树规则的null位置将新结点插入即可,不需要修改树的结构
+2. 递归解法: 当前结点为null时new TreeNode(val)并return,(root.val > val)向左子树递归,else向右子树递归
+3. 迭代法: pre记录上个结点,cur记录当前结点,进行while循环,(root.val > val) cur = cur.left,反之亦然;当退出循环时判断当前结点时pre的哪个子结点再连接上去即可.
+4. 不修改原树: 递归并每次new TreeNode(root.val);每次递归时递归方向返回值连接,将另一边的子树设置整体连接,因为另一个子树必定不是新结点所在
+
+**错漏点**
+
+
 
