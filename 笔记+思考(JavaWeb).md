@@ -357,5 +357,61 @@ public class Result {
 
 **错漏点**
 
+## Day 77 (2026-10-7)
+### 今天复习了stream流及map()与flatMap()的区别;通过Tlias项目练习了如何从前端接收数据并返回,学习logback,Slf4j门面,顺便复盘一下;写了LC450.删除二叉搜索树中的节点
+> stream流及map()与flatMap()的扁平化处理
+
+**我的回答**
+1. stream流的特点是惰性求值,它必须由终端操作或者短路操作进行"触发"才会执行,每一个元素像通过流水线一样经过流中的处理;
+2. 需要注意的是,当条件满足短路操作的条件后,比如findFirst(),后续的元素将不会被处理
+3. map()主要是对数据进行一些函数化处理,但它不会改变数据的嵌套结构,每个元素产生的流仍然是单独的流
+4. flatMap()会对处理流进行扁平化处理,比如List(List(1,2),List(3,4)),在经过flatMap()扁平化处理后会成为List(1,2,3,4)
+
+**错漏点**
+
+惰性求值（终端操作触发）、findFirst 短路后续不处理、flatMap 扁平化示例（List(List(1,2),List(3,4)) → List(1,2,3,4)）——全对，例子选得好。一处表述要拧清楚：
+
+> “map()……每个元素产生的流仍然是单独的流”
+
+更准的说法是：**map 是一对一映射，flatMap 是一对多再摊平**。map 的 lambda 返回一个值（类型可以变，`s → s.length()`）；flatMap 的 lambda 返回一个流/可拆的东西，然后框架把这些子流**合并**成一个流。你说的“不改变嵌套结构”本质是：map 返回 `Stream<List<R>>` 时嵌套还在，flatMap 才把它拍成 `Stream<R>`。面试一句话版本：**map 一进一出，flatMap 一进多出再铺平**。
+
+> 如何从前端接收参数?JSON,路径参数如何处理?logback有哪些知识需要我们了解?
+
+**我的回答**
+1. Controller层接收前端参数主要有三种方式:
+- 方式一: 使用原始的HttpServletRequest对象获取请求,繁琐且需要手动转换
+- 方式二: 通过spring提供的@RequestParam注解将参数传递给形参;但需要注意该注解的request默认为true,此时使用注解就必须在请求时传递参数
+- 方式三: 在请求参数名与方法形参相同时,直接写对应参数即可,可以省略@RequestParam注解(如何实现的不了解)
+2. 对于JSON格式的参数,通常会使用对象进行封装;规则: JSON数据的键名必须与对象的属性名保持一致,并且需要使用@RequestBody注解进行标识
+3. 路径参数: 通过URL直接传递路径参数,使用{..}来标识该路径参数,并使用@PathVariable(..)注解获取路径参数,保持当前参数名与路径参数名一致可以省略()中的内容
+4. Logback是log4j的升级版,使用它需要我们引入Logback依赖并配置logback.xml文件,可在文件中进行配置
+5. 如要在记录某类的日志,通用语法:private static final Logger log = LoggerFactory.getLogger(该类的class对象);如果引入了lombok依赖,只需要在类上写@Slf4j注解即可使用log中的方法
+6. 日志级别: trace(记录文件运行轨迹) < debug(记录程序中调试过程的信息,一般将其视为最低级别) < Info(记录一般信息) < warn(记录警告信息) < error(记录错误信息)
+7. 日志解决了普通的sout只能打印在控制台,无法写入文件且如果要关闭需要逐个注释或删除的缺点,它可以一键开启和关闭,并可以设置所能看到的是何种级别的日志.
+
+**错漏点**
+
+接参三方式（HttpServletRequest / @RequestParam / 同名省略）、@RequestBody 键名对齐、@PathVariable 路径参数——框架全对。三处纠补：
+
+1. **属性名拼写：是 `required`，不是 "request"**​（默认 true 的结论对）。@Autowired→@Autowried、@Repository→@Respository、required→request——注解拼写已经是本周最高频丢分点，进纠错本。
+2. 你标注“（如何实现的不了解）”——这个机制其实 **Day 75 讲过同款**：省略注解后 Spring 按参数名匹配，前提是编译时保留了参数名（spring-boot-parent 默认开 `-parameters`）。MyBatis 的 @Param 和 Spring MVC 的参数绑定是同一块底层。当时没连上，这次连起来。
+3. 补两个边界：**@RequestBody 一个方法只能标一个**（请求体只有一份）；GET 没有请求体，它配 POST/PUT。
+
+Logback 部分：LoggerFactory.getLogger / @Slf4j / 级别顺序 / 日志 vs sout 的优点都对。**最大的缺项：你的标题写了“Slf4j 门面”，正文却一个字没讲它**——上图就是补讲：slf4j 是接口层（门面），logback 是实现层，换 log4j2 不改一行业务代码，**和你学过的 JDBC 完全同构**（JDBC:MySQL 驱动 = slf4j:logback）。这个类比是你现成的记忆挂钩。两处小纠：Boot 项目**不需要手动引 logback 依赖**（starter-web 传递自带 spring-boot-starter-logging，开箱即用）；logback.xml 的核心三件套记一下：**Appender**（输出到哪：控制台/文件）、**logger**（哪个包什么级别）、**pattern**（格式，如 `%d %level %msg`）。
+
+> LC450的反思.
+
+**我的回答**
+1. 这道题处理比较复杂,我还是通过看题解才了解该如何处理.
+2. 对于这题的思路是要对不同情况进行不同的处理,当最后未找到,返回root;找到结点,结点的一个子结点为null时,将结点的非null子树连接到pre;找到结点,但两个子树都不为null,此时将左孩子的头结点放到右孩子的最左结点上.
+3. 第二种方法,用中序的后继结点进行替换: 迭代法思路:先通过迭代找到目标结点,处理两个子结点都不为null的情况,在右子树中找到中序后继,并将后继结点的值赋给cur结点,并让pre指向该后继结点的父结点,cur指向当前后继结点;后续处理一个子节点为null的情况就可以直接复用处理该结点.
+4. 或者采用递归,当找到key结点时,先判断左右结点是否存在null,存在就返回另一个子树;再处理两个子树都不为null,依旧找中序的后继结点newkey并赋值给root.val,然后递归right子树,key为newKey,情况就变成了左子树为null的处理方案,最后递归结束返回root
+
+**错漏点**
+
+两个精化：
+
+1. **pre 的连接方向没写**：`pre.left = child` 还是 `pre.right = child`，取决于 cur 是 pre 的哪一侧——迭代版最容易翻车的就是这一行。
+2. 一个你没点破的巧：**叶子节点（两子都 null）不需要单独分支**——“一子为 null 返回另一边”时另一边也是 null，自然涵盖。很多题解列四种情况，其实三种就够，这个统一性值得写进笔记。
 
 

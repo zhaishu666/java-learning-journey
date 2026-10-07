@@ -581,3 +581,60 @@ xml复制
 **错漏点**：
 
 ---
+
+## Day 13 (2026-10-07) —— 数据封装、前后端联调与 Nginx 反向代理
+
+### 题目1：统一响应封装与全局异常处理在前后端联调中的作用
+> 在前后端分离项目中，后端通常需要返回统一的响应格式（如 {code, message, data}）。请回答：
+> 1. 为什么要做统一响应封装？如果不封装，前端联调时会遇到哪些问题？请从状态码、错误信息、数据格式三个角度说明。
+> 2. 如何设计一个通用的 Result<T> 类？请写出核心字段和静态工厂方法（success、error）。如何结合 @RestControllerAdvice + @ExceptionHandler 实现全局异常处理？
+> 3. 在全局异常处理中，如何区分业务异常（如余额不足）和系统异常（如 NullPointerException）？如何避免将异常堆栈直接返回给前端？
+     > 追问：HTTP 状态码和业务状态码（如 code=500）应该同时使用吗？如果同时使用，前端应该优先判断哪个？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：前后端联调中的跨域问题及 CORS 与 Nginx 反向代理的解决方案
+> 在前后端分离开发中，前端运行在 http://localhost:8080，后端运行在 http://localhost:8081，浏览器会因同源策略阻止请求。请回答：
+> 1. 什么是同源策略？跨域请求在什么情况下会被浏览器阻止？简单请求和非简单请求在跨域处理上有何区别（预检请求 OPTIONS）？
+> 2. Spring Boot 中如何配置 CORS？请写出两种方式（@CrossOrigin 注解和全局 WebMvcConfigurer 配置）。allowedOrigins、allowedMethods、allowCredentials 分别如何设置？
+> 3. 为什么生产环境更推荐使用 Nginx 反向代理解决跨域？请描述 Nginx 配置：前端请求 /api 转发到后端服务，前后端同源部署。
+     > 追问：allowCredentials = true 时，allowedOrigins 为什么不能设置为 *？如果必须允许多个域名携带 Cookie，应如何配置？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：Nginx 反向代理、负载均衡与动静分离在 Java 后端部署中的应用
+> 在 Java 微服务部署中，Nginx 通常作为入口网关。请回答：
+> 1. 正向代理与反向代理的区别是什么？Nginx 作为反向代理的核心作用有哪些（负载均衡、SSL 终止、静态资源服务、限流等）？
+> 2. Nginx 支持哪些负载均衡策略（轮询、权重、IP Hash、最少连接、fair）？请写出 upstream 配置示例，并说明 proxy_pass 末尾带 / 与不带 / 的区别。
+> 3. 什么是动静分离？如何配置 Nginx 让静态资源（HTML、CSS、JS、图片）由 Nginx 直接返回，动态请求（/api）转发给 Tomcat？这样做有什么好处？
+     > 追问：Nginx 的 proxy_set_header 常用配置有哪些？为什么后端需要获取真实客户端 IP 时，必须设置 X-Real-IP 和 X-Forwarded-For？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
