@@ -638,3 +638,60 @@ xml复制
 **错漏点**：
 
 ---
+
+## Day 14 (2026-10-08) —— 接收前端参数与 Logback/SLF4J 基础
+
+### 题目1：Spring MVC 参数接收的完整体系与常见坑
+> 在 Spring Boot Web 项目中，接收前端参数是最基础也最容易踩坑的环节。请回答：
+> 1. 请列出接收前端参数的常用注解及其适用场景：@RequestParam、@PathVariable、@RequestBody、@RequestHeader、@CookieValue、@ModelAttribute。它们分别对应 HTTP 请求的哪一部分？
+> 2. 当 @RequestParam 标注的参数未传且 required 默认 true 时，会抛什么异常？如何优雅处理（如设置默认值、全局异常处理）？若前端传参类型与后端不一致（如字符串传给了 Integer），会发生什么？
+> 3. 接收日期类型参数时，@DateTimeFormat 与 @JsonFormat 分别适用于什么场景？时区问题如何解决？接收数组/集合参数（如 ?ids=1,2,3 和 ?ids=1&ids=2）时如何配置？
+     > 追问：@RequestBody 和 @RequestParam 可以混用吗？如果请求体是 JSON，同时 URL 上又带查询参数，如何同时接收？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：SLF4J 门面模式与 Logback 的关系及日志配置详解
+> 在 Java 后端项目中，SLF4J + Logback 是最常用的日志组合。请回答：
+> 1. SLF4J 是什么？它和 Logback 是什么关系？为什么说 SLF4J 是“门面模式”？如果项目中同时引入了 Log4j、Logback 和 JUL，SLF4J 如何决定绑定哪一个？
+> 2. Logback 的核心组件有哪些（Logger、Appender、Layout/Encoder）？logback-spring.xml 与 logback.xml 有什么区别？为什么 Spring Boot 推荐使用 logback-spring.xml？
+> 3. 如何配置多环境日志（dev 输出到控制台，prod 输出到文件并按天滚动）？请说明 springProfile 标签和 RollingFileAppender 的核心配置项（fileNamePattern、maxHistory、totalSizeCap）。
+     > 追问：日志级别 DEBUG、INFO、WARN、ERROR 的优先级是什么？一个 logger 的级别设置为 INFO，那么 DEBUG 日志会被输出吗？父子 logger 的级别继承规则是怎样的？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：日志占位符、MDC 与异步日志在 Spring Boot 项目中的实践
+> 在 Spring Boot 项目中，日志不仅是调试工具，更是线上排查的核心手段。请回答：
+> 1. 为什么推荐使用 log.info("user: {}", user) 而不是 log.info("user: " + user)？前者在性能上有什么优势？如果 user 为 null，两种写法分别会怎样？
+> 2. MDC（Mapped Diagnostic Context）是什么？底层基于什么实现？如何用 MDC 在日志中打印 TraceId 实现链路追踪？在线程池和异步日志场景下，MDC 为什么会丢失？如何解决？
+> 3. Logback 的 AsyncAppender 如何配置？异步日志的原理是什么？它可能带来哪些问题（如日志丢失、队列阻塞）？discardingThreshold 和 queueSize 参数如何调优？
+     > 追问：在 Spring Boot 中如何动态修改日志级别（不重启应用）？actuator 的 loggers 端点如何实现这一点？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---

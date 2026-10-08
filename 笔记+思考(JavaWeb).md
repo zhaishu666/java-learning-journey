@@ -20,7 +20,8 @@
 
 > “基于TCP协议，面向连接，**安全**”
 
-**HTTP 是明文传输，不安全**——“安全”是 **HTTPS** 的特点（HTTP + SSL/TLS 加密，默认端口 443）。课程里这两个是分开讲的，你把它们焊在一起了。这属于“见字不知其码”级别的混淆，进纠错本。顺带一提，“面向连接”是 TCP 的属性传导给 HTTP 的说法，HTTP 自己不管连接——每次请求-响应完连接即可释放，keep-alive 复用是 HTTP/1.1 的优化，知道即可。
+**HTTP 是明文传输，不安全**——“安全”是 **HTTPS** 的特点（HTTP + SSL/TLS 加密，默认端口 443）。课程里这两个是分开讲的，你把它们焊在一起了。这属于“见字不知其码”级别的混淆，进纠错本。
+顺带一提，“面向连接”是 TCP 的属性传导给 HTTP 的说法，HTTP 自己不管连接——每次请求-响应完连接即可释放，keep-alive 复用是 HTTP/1.1 的优化，知道即可。
 
 **“无状态”这条反而值得展开**，因为它是个钩子：无状态 = 服务器不保存每个客户端的会话上下文 → 减轻服务器负担、响应快，**代价是多次请求间不能共享数据**——这个“代价”就是 P121-124 要发明 Cookie / Session / 令牌的**理论动机**。三天后学到登录认证时回头看你今天这句话，两边就都活了。
 
@@ -140,7 +141,8 @@ Bean 命名再送一个彩蛋：类名**前两个字母都大写**时 Bean 名�
 
 **错漏点**
 
-**Merge ✓，而且我读了仓库的 reflog，"删除重复 git 记录"的真相是这样的**：你在 feature 分支上执行了 `git rebase main`，Git 的 patch 等价检测发现 feature 上那个 docs-gitignore 提交和 main 上的内容完全相同，**自动跳过了它**——不是你手动删的历史，无损，这正是 rebase 的正常行为。完整链：feature 三提交 → rebase main（自动去重）→ checkout main → `merge --no-ff`（'ort' 策略，你采纳了保留拓扑的建议）→ 删除 feature 分支。干净利落，两处好评：
+**Merge ✓，而且我读了仓库的 reflog，"删除重复 git 记录"的真相是这样的**：你在 feature 分支上执行了 `git rebase main`，Git 的 patch 等价检测发现 feature 上那个 docs-gitignore 提交和 main 上的内容完全相同，**自动跳过了它**——不是你手动删的历史，无损，这正是 rebase 的正常行为。
+完整链：feature 三提交 → rebase main（自动去重）→ checkout main → `merge --no-ff`（'ort' 策略，你采纳了保留拓扑的建议）→ 删除 feature 分支。干净利落，两处好评：
 
 - 顺手看到了今天的提交 `a6f5aa2`："引入 JaCoCo 覆盖率插件，**数据文件放纯 ASCII 路径**"——这才是中文路径问题的真解：不搬项目，把 JaCoCo 输出重定向到英文路径。比我之前猜的“搬目录”精准，commit message 也写了为什么，规范。
 - 一个提醒：**merge 完记得 push**——远端的 main 还停在旧位置，这次亲手敲。
@@ -373,7 +375,8 @@ public class Result {
 
 > “map()……每个元素产生的流仍然是单独的流”
 
-更准的说法是：**map 是一对一映射，flatMap 是一对多再摊平**。map 的 lambda 返回一个值（类型可以变，`s → s.length()`）；flatMap 的 lambda 返回一个流/可拆的东西，然后框架把这些子流**合并**成一个流。你说的“不改变嵌套结构”本质是：map 返回 `Stream<List<R>>` 时嵌套还在，flatMap 才把它拍成 `Stream<R>`。面试一句话版本：**map 一进一出，flatMap 一进多出再铺平**。
+更准的说法是：**map 是一对一映射，flatMap 是一对多再摊平**。map 的 lambda 返回一个值（类型可以变，`s → s.length()`）；
+flatMap 的 lambda 返回一个流/可拆的东西，然后框架把这些子流**合并**成一个流。你说的“不改变嵌套结构”本质是：map 返回 `Stream<List<R>>` 时嵌套还在，flatMap 才把它拍成 `Stream<R>`。面试一句话版本：**map 一进一出，flatMap 一进多出再铺平**。
 
 > 如何从前端接收参数?JSON,路径参数如何处理?logback有哪些知识需要我们了解?
 
@@ -397,7 +400,8 @@ public class Result {
 2. 你标注“（如何实现的不了解）”——这个机制其实 **Day 75 讲过同款**：省略注解后 Spring 按参数名匹配，前提是编译时保留了参数名（spring-boot-parent 默认开 `-parameters`）。MyBatis 的 @Param 和 Spring MVC 的参数绑定是同一块底层。当时没连上，这次连起来。
 3. 补两个边界：**@RequestBody 一个方法只能标一个**（请求体只有一份）；GET 没有请求体，它配 POST/PUT。
 
-Logback 部分：LoggerFactory.getLogger / @Slf4j / 级别顺序 / 日志 vs sout 的优点都对。**最大的缺项：你的标题写了“Slf4j 门面”，正文却一个字没讲它**——上图就是补讲：slf4j 是接口层（门面），logback 是实现层，换 log4j2 不改一行业务代码，**和你学过的 JDBC 完全同构**（JDBC:MySQL 驱动 = slf4j:logback）。这个类比是你现成的记忆挂钩。两处小纠：Boot 项目**不需要手动引 logback 依赖**（starter-web 传递自带 spring-boot-starter-logging，开箱即用）；logback.xml 的核心三件套记一下：**Appender**（输出到哪：控制台/文件）、**logger**（哪个包什么级别）、**pattern**（格式，如 `%d %level %msg`）。
+Logback 部分：LoggerFactory.getLogger / @Slf4j / 级别顺序 / 日志 vs sout 的优点都对。**最大的缺项：你的标题写了“Slf4j 门面”，正文却一个字没讲它**——上图就是补讲：slf4j 是接口层（门面），logback 是实现层，换 log4j2 不改一行业务代码，**和你学过的 JDBC 完全同构**（JDBC:MySQL 驱动 = slf4j:logback）。
+这个类比是你现成的记忆挂钩。两处小纠：Boot 项目**不需要手动引 logback 依赖**（starter-web 传递自带 spring-boot-starter-logging，开箱即用）；logback.xml 的核心三件套记一下：**Appender**（输出到哪：控制台/文件）、**logger**（哪个包什么级别）、**pattern**（格式，如 `%d %level %msg`）。
 
 > LC450的反思.
 
@@ -413,5 +417,70 @@ Logback 部分：LoggerFactory.getLogger / @Slf4j / 级别顺序 / 日志 vs sou
 
 1. **pre 的连接方向没写**：`pre.left = child` 还是 `pre.right = child`，取决于 cur 是 pre 的哪一侧——迭代版最容易翻车的就是这一行。
 2. 一个你没点破的巧：**叶子节点（两子都 null）不需要单独分支**——“一子为 null 返回另一边”时另一边也是 null，自然涵盖。很多题解列四种情况，其实三种就够，这个统一性值得写进笔记。
+
+## Day 78 (2026-10-8)
+### 今天复习了方法引用的知识;实操写了Tlias中的分页查询的处理,PageHelper和动态SQL;写了LC669.修剪二叉搜索树.
+> 方法引用的四种格式是什么?它能与Lambda表达式完全等价吗?
+
+**我的回答**
+1. 方法引用的四种格式:
+- 类名::静态方法 : 通过类名引用静态方法,如Integer::parseInt.
+- 类名::实例方法 : 此时原本抽象类中的第一个参数被当作方法的调用者,如: String::toUpperCase
+- 对象::实例方法 : 通过对象来调用实例方法,如: System.out::println
+- 类名::new : 要将参数转化为其他类型时使用,并且同时支持无参和有参构造
+2. 一般在Lambda表达式内部只需要简单逻辑时使用,复杂逻辑只能使用Lambda表达式完成.
+3. 参数传递与方法签名完全一样,实际上方法引用指向的是已经存在的方法,可能会比Lambda更快,但主要区别是在可读性上
+
+**错漏点**
+
+四种格式一次写全，而且**“类名::实例方法，第一个参数被当作调用者”**——最反直觉的那条你写对了（`String::toUpperCase` 配 `Function<String,String>`，s 变成 receiver）。但第 3 条有个**自相矛盾**要抓出来：
+
+- “参数传递与方法签名完全一样”
+
+你自己第 1 条刚写过“第一个参数被当作方法的调用者”——`String::toUpperCase` 里 `toUpperCase()` 本身**零参数**，接口却吃一个参数。签名根本不一样。
+正确规则一句话：**接口的首参当调用者，剩余参数当方法的实参**（`BiFunction<String,String,Boolean>` 可以吃 `String::equals`——首参是 receiver，第二个参数传给 equals）。
+另外两处小抠：构造器引用说成“将参数转化为其他类型时使用”——更准的说法是 **lambda 的返回值是一个新对象**（Supplier / Function 场景）；“可能比 Lambda 更快”没有依据（现代 JVM 两者都会被内联优化，性能等价）——你自己后半句“主要区别在可读性上”才是对的结论
+
+> 分页查询处理及如何返回,PageHelper和动态SQL
+
+**我的回答**
+1. 原始的分页查询方式是通过接收前端操作,并在mapper层编写对应的分页查询SQL语句,controller层调用service实现,service层负责调用mapper层并封装返回给controller层.
+- @RequestParam(defaultValue = "..") 可以为参数设置初始值,避免手动赋值
+2. PageHelper是第三方提供的帮助我们处理分页查询的插件;我们就不需要手动书写分页的语句了,几个注意点:
+- startPage后必须紧跟第一个MyBatis查询,中间不能有其他查询
+- SQL注解中的SQL后不要加";"
+- @DateTimeFormat(pattern= ..) 可以指定前端传递的时间参数格式
+3. 如果SQL语句比较复杂且需要动态处理,可以将其配置在xml文件中并使用动态SQL的格式,两个标签:
+- <if ..>..</if> 只有符合条件时才拼接对应的SQL语句
+- <where>..</where> 根据查询的条件,生成where关键字并去除多余的and或or
+
+**错漏点**
+
+分层链路、`defaultValue`、startPage 紧跟第一条查询、SQL 不加分号、`@DateTimeFormat`——都对，尤其那两条 PageHelper 注意点是实操真踩过才会记的。**但你记的是“规矩”，缺的是“为什么”**——上面的图就是原理，
+它把你两条注意点全部解释掉了：`startPage` 只是往 **ThreadLocal** 塞参数，真正的活由 **MyBatis 拦截器**干（改写 SQL 加 LIMIT + 自动发 count），ThreadLocal 的参数**被第一条查询消费后立刻清除**——所以“必须紧跟第一个查询”，不然参数就漏给别的查询或干脆丢了；SQL 被拦截器改写，所以分号会坏事。面试追问“PageHelper 原理”就用图里那三句话。
+
+补三个小点：①返回封装的标准结构是 **PageBean{ total, rows }**（你写“封装返回”太虚，这个结构名点一下）；②动态 SQL 家族还有 `<foreach>`——下周 P110 批量删除会用到，到时候回来补；
+③把昨天的钩子收掉：PageHelper 生成的就是 `LIMIT offset, size`，**大偏移深分页它不解决**——`limit 1000000, 10` 为什么慢、怎么优化（覆盖索引 + 子查询定位 / 游标），是你 MySQL 阶段深分页知识的直接延续，属于主项目追问链素材，这两周不用动，知道这条线连着即可。
+
+![](img/javaWebImg/PageHelper.svg)
+
+> LC669.修剪二叉搜索树的反思
+
+**我的回答**
+1. 刚开始看这道题没有思路,看别人的思路后解出来了;对于这题我们要分情况讨论,先处理root.val不在[low,high]区间的情况,此时抛去另一子树和root,将新树再进行处理
+2. 对于递归解法: 按照以上思路进行递归即可,退出条件是root == null;当前结点不在范围时就向不符合范围的另一边递归;在范围内就正常递归,最后返回root.
+3. 这题的迭代法很难想到,我是看题解后理解: 如果root不在范围内,就不断迭代,直到找到范围内的结点,作为新root,然后在分别剪枝左子树和右子树;
+处理左子树时不断向最右迭代,cur.left.val < low时: cur.left = cur.left.right; cur = cur.right
+
+**错漏点**
+
+**1. 方向表述要拧准。** 你写“抛去另一子树”“向不符合范围的另一边递归”——两个“另一”指代相反，字面复现会懵。精确版：
+
+- `val < low`：左子树**整棵必弃**（全部更小），返回 `trim(root.right)`
+- `val > high`：右子树**整棵必弃**（全部更大），返回 `trim(root.left)`
+
+**2. 你漏写了这题最漂亮的一步：返回值连接。**“在范围内就正常递归”——字面缺了 `root.left = trim(root.left); root.right = trim(root.right)` 这两行。注意这条线：**LC701（插入）、LC450（删除）、LC669（修剪）三题全是同一招**——“递归返回值接到父节点”。450 里你要判断 pre 的连接方向，而 669 连 pre 都不需要——越界的整棵子树直接被返回值替换掉，**抛弃 + 重挂一步完成**。这是“递归统一语义原则”在 BST 结构题上的完整形态，值得在笔记里把三题钉成一页。
+
+**3. 迭代版你只写了左子树剪枝**（`cur.left.val < low` → `cur.left = cur.left.right`，沿右链走 ✓），右子树是对称镜像：`cur.right.val > high` → `cur.right = cur.right.left`，沿左链走。
 
 

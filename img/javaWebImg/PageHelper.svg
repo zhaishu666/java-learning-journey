@@ -1,0 +1,38 @@
+<svg viewBox="0 0 680 380" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+    <title>PageHelper工作原理：startPage写ThreadLocal，拦截器改写SQL并自动发count，一次消费即清除</title>
+    <desc>流程：Service调用startPage(pageNum,pageSize)将分页参数存入ThreadLocal；随后的第一条MyBatis查询被PageInterceptor拦截，读取并清除ThreadLocal参数；拦截器自动改写SQL为LIMIT形式并发送count查询；返回PageBean含total与rows。因为ThreadLocal参数一次消费即清除，startPage后必须紧跟第一个查询，否则分页失效。</desc>
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+    </defs>
+    <text class="th" x="40" y="28" font-size="14" fill="#26215C">PageHelper 原理：你记了两条注意点，图里是它们的"为什么"</text>
+    <g font-size="12" font-family="monospace" text-anchor="middle">
+        <rect x="40" y="60" width="170" height="52" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+        <text x="125" y="82" fill="#0C447C" font-weight="500">Service 层</text>
+        <text x="125" y="100" fill="#0C447C" font-size="11">PageHelper.startPage(1,10)</text>
+        <rect x="280" y="60" width="170" height="52" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
+        <text x="365" y="82" fill="#26215C" font-weight="500">ThreadLocal</text>
+        <text x="365" y="100" fill="#534AB7" font-size="11">存入 pageNum=1, pageSize=10</text>
+        <rect x="520" y="60" width="120" height="52" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+        <text x="580" y="82" fill="#0C447C" font-weight="500">Mapper 查询</text>
+        <text x="580" y="100" fill="#0C447C" font-size="11">select ... from emp</text>
+    </g>
+    <g class="arr" stroke="#5F5E5A">
+        <line x1="210" y1="86" x2="276" y2="86" marker-end="url(#arrow)"/>
+        <line x1="450" y1="86" x2="516" y2="86" marker-end="url(#arrow)"/>
+    </g>
+    <rect x="40" y="160" width="600" height="120" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+    <text x="58" y="186" font-size="13" fill="#0C447C" font-weight="500">PageInterceptor（MyBatis 拦截器）拦住这条查询：</text>
+    <g font-size="12" font-family="monospace" fill="#2C2C2A">
+        <text x="58" y="212">① 读 ThreadLocal → 拿到分页参数 → 立刻清除（一次消费）</text>
+        <text x="58" y="236">② 改写 SQL：select ... from emp LIMIT 0, 10</text>
+        <text x="58" y="260">③ 自动追加 count：select count(*) from emp（拿 total）</text>
+    </g>
+    <g class="arr" stroke="#5F5E5A">
+        <line x1="580" y1="112" x2="580" y2="156" marker-end="url(#arrow)"/>
+    </g>
+    <rect x="40" y="300" width="600" height="34" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+    <text x="56" y="322" font-size="12" fill="#633806">所以你的两条注意点：startPage 后必须紧跟第一个查询（ThreadLocal 参数被第一条查询消费后就没了）；SQL 后别加分号（拦截器要改写 SQL，分号会让改写失败）</text>
+    <text x="40" y="364" font-size="12" fill="#5F5E5A">面试追问"PageHelper 原理"就答：ThreadLocal 传参 + 拦截器改写 SQL + 自动 count，三句话</text>
+</svg>
