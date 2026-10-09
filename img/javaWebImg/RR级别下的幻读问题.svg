@@ -1,0 +1,35 @@
+<svg viewBox="0 0 680 400" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+    <title>RR隔离级别下快照读与当前读混用导致幻读的时间线</title>
+    <desc>事务A先begin并快照读，看不到age大于20的行；事务B插入age=25的行并提交；事务A做select for update当前读，读到该新行，幻影出现；事务A再做普通快照读，又看不到了。原因是快照读读旧readView，当前读读最新版本。</desc>
+    <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+    </defs>
+    <text class="th" x="40" y="28" font-size="14" fill="#26215C">你问"RR 下何时还会出幻读"——答案是：快照读与当前读混用</text>
+    <rect x="40" y="52" width="280" height="300" rx="10" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+    <text x="180" y="76" font-size="13" fill="#0C447C" text-anchor="middle" font-weight="500">事务 A（RR）</text>
+    <rect x="360" y="52" width="280" height="300" rx="10" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+    <text x="500" y="76" font-size="13" fill="#085041" text-anchor="middle" font-weight="500">事务 B</text>
+    <g font-size="12" font-family="monospace" fill="#2C2C2A">
+        <text x="58" y="106">t1  begin;</text>
+        <text x="58" y="136">t2  select * from t</text>
+        <text x="58" y="154" fill="#185FA5">    where age &gt; 20;   ← 快照读</text>
+        <text x="58" y="172" fill="#5F5E5A">    结果：0 行（readView 固定）</text>
+        <text x="58" y="252">t6  select ... for update;</text>
+        <text x="58" y="270" fill="#A32D2D">    ← 当前读！读最新版本</text>
+        <rect x="52" y="242" width="258" height="44" fill="none" stroke="#A32D2D" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="58" y="316">t7  select * where age &gt; 20;</text>
+        <text x="58" y="334" fill="#185FA5">    ← 又是快照读：还是 0 行？!</text>
+    </g>
+    <g font-size="12" font-family="monospace" fill="#2C2C2A">
+        <text x="378" y="196">t3  begin;</text>
+        <text x="378" y="216">t4  insert ... age = 25;</text>
+        <text x="378" y="236">t5  commit;</text>
+    </g>
+    <g class="arr" stroke="#0F6E56">
+        <line x1="378" y1="222" x2="322" y2="260" marker-end="url(#arrow)"/>
+    </g>
+    <rect x="40" y="364" width="600" height="28" rx="6" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+    <text x="52" y="383" font-size="12" fill="#791F1F" font-weight="500">t6 读到了 t4 插入的行 = 幻影出现；t7 又看不见——同一次读忽隐忽现，就是 RR 残余幻读的全部秘密</text>
+</svg>

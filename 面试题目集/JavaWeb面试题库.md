@@ -695,3 +695,60 @@ xml复制
 **错漏点**：
 
 ---
+
+## Day 15 (2026-10-09) —— 分页查询、PageHelper 与动态 SQL
+
+### 题目1：物理分页与逻辑分页的区别，以及 PageHelper 的底层实现原理
+> 在 Java 后端开发中，分页查询是必备技能。请回答：
+> 1. 什么是物理分页？什么是逻辑分页？两者在 SQL 执行、内存占用和性能上有何本质区别？为什么大数据量下必须使用物理分页？
+> 2. PageHelper 是如何实现物理分页的？它的核心拦截器（PageInterceptor）在 MyBatis 的哪个执行阶段介入？请描述 PageHelper.startPage() 之后，MyBatis 执行 SQL 时经历了哪些步骤（如 COUNT 查询、LIMIT 拼接、ThreadLocal 清理）。
+> 3. 使用 PageHelper 时，为什么 startPage() 必须紧跟在查询方法之前？如果中间插入了其他数据库操作，会发生什么？PageHelper 在分页查询后如果不调用 PageInfo 或 clearPage()，可能带来什么问题？
+     > 追问：PageHelper 的 count 查询在什么情况下会被优化或跳过？如何配置 `pagehelper.supportMethodsArguments` 和 `reasonable` 参数？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目2：MyBatis 动态 SQL 的核心标签及在复杂查询中的应用
+> 动态 SQL 是 MyBatis 的强项，用于根据条件拼接 SQL。请回答：
+> 1. `<if>`、`<choose>/<when>/<otherwise>`、`<where>`、`<set>`、`<trim>` 分别解决什么问题？`<where>` 和 `<set>` 底层是如何处理多余的 AND、OR 或逗号的？
+> 2. `<foreach>` 的 collection、item、index、open、close、separator 属性分别是什么含义？请分别写出用 `<foreach>` 实现 IN 查询和批量插入的示例片段。
+> 3. 在动态 SQL 中，`#{}` 和 `${}` 的使用场景有何不同？动态表名、动态排序字段（ORDER BY）为什么必须用 `${}`？如何防止由此带来的 SQL 注入风险？
+     > 追问：MyBatis 的 `<sql>` 和 `<include>` 标签如何实现 SQL 片段复用？`<bind>` 标签有什么作用？请举例说明。
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+
+### 题目3：分页查询与动态 SQL 在前后端联调中的接口设计（综合实战）
+> 假设你正在开发一个订单列表查询接口，前端传入以下参数：页码 pageNum、每页条数 pageSize、订单状态 status（可选）、下单时间范围 startTime/endTime（可选）、用户ID userId（可选）。请回答：
+> 1. 请设计后端 Controller 接收参数的 DTO 类，并说明如何用 @RequestParam 或 @ModelAttribute 接收这些参数。
+> 2. 请写出对应的 MyBatis Mapper XML 中的动态 SQL 查询片段（包含 WHERE 条件、分页由 PageHelper 处理），要求支持按创建时间降序排列。
+> 3. 返回给前端的统一分页结果应该包含哪些字段（如 total、list、pageNum、pageSize、pages）？如何使用 PageInfo 封装？如果前端需要“上一页/下一页”的页码，PageInfo 中哪些属性可以直接使用？
+     > 追问：当查询条件很多时，如何避免 Mapper 接口方法参数过多？@Param 注解和 Map 传参各有什么优缺点？
+
+<details>
+<summary><strong>点击展开标准解析</strong></summary>
+
+（此处留空，自行补充）
+
+</details>
+
+**我的初答**：
+**错漏点**：
+
+---
